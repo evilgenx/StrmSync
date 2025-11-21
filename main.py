@@ -27,6 +27,7 @@ from strm_utils import (
     tv_strm_path,
     doc_strm_path,
 )
+from url_utils import get_m3u_path
 
 
 def touch_emby(api_url: str, api_key: str):
@@ -70,7 +71,7 @@ def write_excluded_report(path: Path, excluded, allowed_count: int, enabled: boo
 
 
 def run_pipeline():
-    cfg = config.load_config(Path(__file__).parent / "config.json")
+    cfg = config.load_config(Path(__file__).parent / "config.ini")
     logger = logging.getLogger()
     logger.setLevel(logging.DEBUG)
     formatter = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
@@ -85,7 +86,10 @@ def run_pipeline():
         logger.handlers.clear()
     logger.addHandler(file_handler)
     logger.addHandler(console_handler)
-    m3u_path = cfg.m3u
+    # Handle M3U source (local file or URL)
+    m3u_path = get_m3u_path(cfg.m3u)
+    logging.info(f"Processing M3U from: {m3u_path}")
+    
     output_dir = cfg.output_dir
     db_path = cfg.sqlite_cache_file
     ignore_keywords = cfg.ignore_keywords or {}
@@ -104,6 +108,12 @@ def run_pipeline():
         replay_keywords=cfg.replay_group_keywords,
         ignore_keywords=cfg.ignore_keywords,
     )
+    
+    # Filter out live TV channels (REPLAY category) to keep only VOD content
+    original_count = len(entries)
+    entries = [entry for entry in entries if entry.category != Category.REPLAY]
+    replay_count = original_count - len(entries)
+    logging.info(f"Filtered out {replay_count} REPLAY (live TV) entries, keeping {len(entries)} VOD entries")
     unique_entries = {}
     for e in entries:
         if e.category == Category.MOVIE:
@@ -234,7 +244,7 @@ def run_pipeline():
             if not key:
                 logging.error("No cache key generated for %r", e.raw_title)
                 return
-            abs_path = rel_path
+            abs_path = output_dir / rel_path
             url = e.url
             if key in existing_keys:
                 skipped_count += 1

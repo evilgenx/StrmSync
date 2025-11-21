@@ -1,6 +1,6 @@
 import logging, re, time, random
 from pathlib import Path
-from typing import List, Optional, Tuple, Dict
+from typing import List, Optional, Tuple, Dict, Union
 from dataclasses import dataclass
 from enum import Enum
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -14,6 +14,7 @@ from core import (
     make_cache_key,
     extract_year,
 )
+from url_utils import get_m3u_path
 
 
 @dataclass

@@ -32,20 +32,21 @@ def write_strm_file(base_dir: Path, relative_path: Path, url: str) -> Path:
 
 
 def cleanup_strm_tree(base_dir: Path, cache: Dict[str, Dict[str, str]]):
-    if not base_dir.exists():
+    base_dir_abs = base_dir.resolve()
+    if not base_dir_abs.exists():
         return
     if not cache:
         logging.warning("Cache is empty — skipping cleanup to avoid deleting everything.")
         return
-    valid_paths = {Path(d.get("path")) for d in cache.values() if d.get("path")}
+    valid_paths = {Path(d.get("path")).resolve() for d in cache.values() if d.get("path")}
     removed_files = 0
     removed_dirs = 0
     protected_roots = {"Movies", "TV Shows", "Documentaries"}
-    for dirpath, _, filenames in os.walk(base_dir, topdown=False):
+    for dirpath, _, filenames in os.walk(base_dir_abs, topdown=False):
         dirp = Path(dirpath)
         for strm_file in [f for f in filenames if f.endswith(".strm")]:
             strm_path = dirp / strm_file
-            if strm_path not in valid_paths:
+            if strm_path.resolve() not in valid_paths:
                 try:
                     strm_path.unlink()
                     removed_files += 1

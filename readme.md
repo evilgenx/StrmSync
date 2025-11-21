@@ -11,7 +11,7 @@ This script keeps your **VOD library organized and current** by syncing an IPTV 
    - Builds a cache of everything you already have locally.
 
 2. **Read the VOD Playlist**
-   - Parses your IPTV `.m3u` file.
+   - Parses your IPTV `.m3u` file (local file or URL).
    - Lists all available titles and their stream URLs.
 
 3. **Filter by Region**
