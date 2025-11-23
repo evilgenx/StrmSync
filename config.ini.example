@@ -35,6 +35,11 @@ tmdb_api = YOUR_TMDB_API_KEY_HERE
 #emby_api_url = https://your-emby-server.com
 #emby_api_key = YOUR_EMBY_API_KEY
 
+# Jellyfin API settings (optional)
+# Uncomment and configure if you want to use Jellyfin API integration
+#jellyfin_api_url = https://your-jellyfin-server.com
+#jellyfin_api_key = YOUR_JELLYFIN_API_KEY
+
 [settings]
 # Dry run mode (true/false)
 # If true, no files will be written - useful for testing configuration

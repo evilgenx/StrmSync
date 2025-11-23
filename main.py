@@ -33,17 +33,29 @@ from strm_utils import (
 from url_utils import get_m3u_path
 
 
-def touch_emby(api_url: str, api_key: str):
+def refresh_media_server(api_url: str, api_key: str, server_type: str = "emby"):
+    """
+    Refresh media server library (Emby or Jellyfin)
+    
+    Args:
+        api_url: Media server API URL
+        api_key: Media server API key
+        server_type: Either "emby" or "jellyfin"
+    """
     try:
         refresh_url = api_url.rstrip("/") + "/Library/Refresh"
-        headers = {"X-Emby-Token": api_key}
+        if server_type.lower() == "emby":
+            headers = {"X-Emby-Token": api_key}
+        else:  # jellyfin
+            headers = {"X-MediaBrowser-Token": api_key}
+        
         r = requests.post(refresh_url, headers=headers, timeout=10)
         if r.status_code in (200, 204):
-            logging.info(f"Triggered Emby library refresh via {refresh_url}")
+            logging.info(f"Triggered {server_type} library refresh via {refresh_url}")
         else:
-            logging.warning(f"Emby refresh failed: {r.status_code} - {r.text} ({refresh_url})")
+            logging.warning(f"{server_type} refresh failed: {r.status_code} - {r.text} ({refresh_url})")
     except Exception as e:
-        logging.error(f"Emby refresh error: {e}", exc_info=True)
+        logging.error(f"{server_type} refresh error: {e}", exc_info=True)
 
 
 def write_excluded_report(path: Path, excluded, allowed_count: int, enabled: bool):
@@ -256,11 +268,18 @@ def run_pipeline():
     cache.replace_strm_cache(new_cache)
     logging.info("Cleaning up orphan STRMs...")
     cleanup_strm_tree(output_dir, new_cache)
-    if not cfg.dry_run and getattr(cfg, "emby_api_url", None) and getattr(cfg, "emby_api_key", None):
-        logging.info("Triggering Emby library refresh...")
-        touch_emby(cfg.emby_api_url, cfg.emby_api_key)
+    # Refresh media servers if configured
+    if not cfg.dry_run:
+        if getattr(cfg, "emby_api_url", None) and getattr(cfg, "emby_api_key", None):
+            logging.info("Triggering Emby library refresh...")
+            refresh_media_server(cfg.emby_api_url, cfg.emby_api_key, "emby")
+        elif getattr(cfg, "jellyfin_api_url", None) and getattr(cfg, "jellyfin_api_key", None):
+            logging.info("Triggering Jellyfin library refresh...")
+            refresh_media_server(cfg.jellyfin_api_url, cfg.jellyfin_api_key, "jellyfin")
+        else:
+            logging.info("Skipping media server refresh (not configured)")
     else:
-        logging.info("Skipping Emby refresh (either dry_run or not configured)")
+        logging.info("Skipping media server refresh (dry_run mode)")
     logging.info(
         f"VOD/Strm process complete: {written_count} STRMs written, {skipped_count} skipped, {len(excluded)} excluded"
     )

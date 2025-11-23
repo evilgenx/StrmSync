@@ -26,6 +26,8 @@ class Config:
     ignore_keywords: Dict[str, List[str]] = None
     emby_api_url: Optional[str] = None
     emby_api_key: Optional[str] = None
+    jellyfin_api_url: Optional[str] = None
+    jellyfin_api_key: Optional[str] = None
     compare_movies_dir: Optional[Path] = None
     compare_tv_dir: Optional[Path] = None
 
@@ -103,6 +105,13 @@ class ConfigValidator:
         
         if config.emby_api_key and not config.emby_api_url:
             errors.append("Emby API URL is required when Emby API key is provided")
+        
+        # Validate Jellyfin configuration (if provided)
+        if config.jellyfin_api_url and not config.jellyfin_api_key:
+            errors.append("Jellyfin API key is required when Jellyfin API URL is provided")
+        
+        if config.jellyfin_api_key and not config.jellyfin_api_url:
+            errors.append("Jellyfin API URL is required when Jellyfin API key is provided")
         
         return errors
     
@@ -203,6 +212,8 @@ def load_config(path: Path) -> Config:
         ignore_keywords=ignore_keywords,
         emby_api_url=config.get("api", "emby_api_url", fallback=None),
         emby_api_key=config.get("api", "emby_api_key", fallback=None),
+        jellyfin_api_url=config.get("api", "jellyfin_api_url", fallback=None),
+        jellyfin_api_key=config.get("api", "jellyfin_api_key", fallback=None),
         compare_movies_dir=compare_movies_dir,
         compare_tv_dir=compare_tv_dir,
     )

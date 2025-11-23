@@ -8,7 +8,7 @@ A sophisticated Python tool that converts IPTV VOD playlists into `.strm` files 
 - **M3U Playlist Processing**: Parse local files or remote URLs containing IPTV VOD content
 - **Smart Content Filtering**: Use TMDb API to filter content by country of origin
 - **Automatic .strm Generation**: Create properly formatted `.strm` files for media servers
-- **Library Integration**: Automatically refresh Emby/Jellyfin libraries after updates
+- **Library Integration**: Automatically refresh Emby and Jellyfin libraries after updates
 - **Multi-threaded Processing**: Parallel processing for faster performance
 
 ### Content Management
@@ -77,9 +77,13 @@ log_file = "/path/to/m3u2strm.log"
 # TMDb API key (required)
 tmdb_api = "your_tmdb_api_key_here"
 
-# Emby/Jellyfin API (optional)
+# Emby API (optional)
 emby_api_url = "http://your-emby-server:8096"
 emby_api_key = "your_emby_api_key"
+
+# Jellyfin API (optional)
+jellyfin_api_url = "http://your-jellyfin-server:8096"
+jellyfin_api_key = "your_jellyfin_api_key"
 
 [countries]
 # Allowed countries for content filtering
@@ -116,7 +120,8 @@ write_non_us_report = true
 
 #### API Section
 - `tmdb_api`: Required for country filtering and metadata
-- `emby_api_url` & `emby_api_key`: Optional for automatic library refresh
+- `emby_api_url` & `emby_api_key`: Optional for automatic Emby library refresh
+- `jellyfin_api_url` & `jellyfin_api_key`: Optional for automatic Jellyfin library refresh
 
 #### Countries Section
 - `allowed_movie_countries`: Countries allowed for movies (comma-separated ISO codes)
