@@ -3,6 +3,7 @@ import configparser
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Dict, Optional
+import logging
 
 
 @dataclass
@@ -25,6 +26,107 @@ class Config:
     ignore_keywords: Dict[str, List[str]] = None
     emby_api_url: Optional[str] = None
     emby_api_key: Optional[str] = None
+    compare_movies_dir: Optional[Path] = None
+    compare_tv_dir: Optional[Path] = None
+
+
+class ConfigValidator:
+    """Configuration validation to prevent runtime errors."""
+    
+    @staticmethod
+    def validate(config: Config) -> List[str]:
+        """
+        Validate configuration values and return list of errors.
+        
+        Args:
+            config: The Config object to validate
+            
+        Returns:
+            List of error messages (empty if valid)
+        """
+        errors = []
+        
+        # Check required fields
+        if not config.tmdb_api or config.tmdb_api.strip() == "":
+            errors.append("TMDb API key is required and cannot be empty")
+        
+        if not config.existing_media_dirs:
+            errors.append("At least one existing_media_dir is required")
+        
+        # Validate directory paths
+        for dir_path in config.existing_media_dirs:
+            if not dir_path.exists():
+                errors.append(f"Existing media directory does not exist: {dir_path}")
+        
+        if config.output_dir:
+            try:
+                config.output_dir.mkdir(parents=True, exist_ok=True)
+            except Exception as e:
+                errors.append(f"Cannot create output directory {config.output_dir}: {e}")
+        
+        # Validate file paths
+        if config.sqlite_cache_file:
+            try:
+                config.sqlite_cache_file.parent.mkdir(parents=True, exist_ok=True)
+            except Exception as e:
+                errors.append(f"Cannot create cache directory {config.sqlite_cache_file.parent}: {e}")
+        
+        if config.log_file:
+            try:
+                config.log_file.parent.mkdir(parents=True, exist_ok=True)
+            except Exception as e:
+                errors.append(f"Cannot create log directory {config.log_file.parent}: {e}")
+        
+        # Validate numeric values
+        if config.max_workers is not None:
+            if config.max_workers < 1:
+                errors.append("max_workers must be at least 1")
+            elif config.max_workers > 50:
+                errors.append("max_workers cannot exceed 50 (sanity check)")
+        
+        # Validate M3U source
+        if not config.m3u:
+            errors.append("M3U source path or URL is required")
+        elif not (config.m3u.startswith(('http://', 'https://')) or Path(config.m3u).exists()):
+            errors.append(f"M3U source does not exist and is not a valid URL: {config.m3u}")
+        
+        # Validate optional comparison directories
+        if config.compare_movies_dir and not config.compare_movies_dir.exists():
+            errors.append(f"Comparison movies directory does not exist: {config.compare_movies_dir}")
+        
+        if config.compare_tv_dir and not config.compare_tv_dir.exists():
+            errors.append(f"Comparison TV directory does not exist: {config.compare_tv_dir}")
+        
+        # Validate Emby configuration (if provided)
+        if config.emby_api_url and not config.emby_api_key:
+            errors.append("Emby API key is required when Emby API URL is provided")
+        
+        if config.emby_api_key and not config.emby_api_url:
+            errors.append("Emby API URL is required when Emby API key is provided")
+        
+        return errors
+    
+    @staticmethod
+    def validate_and_log(config: Config) -> bool:
+        """
+        Validate configuration and log any errors.
+        
+        Args:
+            config: The Config object to validate
+            
+        Returns:
+            True if valid, False if errors found
+        """
+        errors = ConfigValidator.validate(config)
+        
+        if errors:
+            logging.error("Configuration validation failed:")
+            for error in errors:
+                logging.error(f"  - {error}")
+            return False
+        
+        logging.info("Configuration validation passed")
+        return True
 
 
 def _coerce_bool(val, default=False) -> bool:
@@ -75,6 +177,13 @@ def load_config(path: Path) -> Config:
     # Remove surrounding quotes if present
     m3u_source = m3u_source.strip('"\'')
     
+    # Parse comparison directories (optional)
+    compare_movies_dir_str = config.get("paths", "compare_movies_dir", fallback="").strip()
+    compare_movies_dir = Path(compare_movies_dir_str) if compare_movies_dir_str else None
+    
+    compare_tv_dir_str = config.get("paths", "compare_tv_dir", fallback="").strip()
+    compare_tv_dir = Path(compare_tv_dir_str) if compare_tv_dir_str else None
+    
     return Config(
         m3u=m3u_source,  # Keep as string, let get_m3u_path handle the conversion
         sqlite_cache_file=Path(config.get("paths", "sqlite_cache_file")),
@@ -94,4 +203,6 @@ def load_config(path: Path) -> Config:
         ignore_keywords=ignore_keywords,
         emby_api_url=config.get("api", "emby_api_url", fallback=None),
         emby_api_key=config.get("api", "emby_api_key", fallback=None),
+        compare_movies_dir=compare_movies_dir,
+        compare_tv_dir=compare_tv_dir,
     )

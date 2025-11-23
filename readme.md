@@ -24,6 +24,7 @@ A sophisticated Python tool that converts IPTV VOD playlists into `.strm` files 
 - **Keyword-based Filtering**: Customizable content categorization and exclusion
 - **Dry Run Mode**: Test configurations without making actual changes
 - **Comprehensive Logging**: Detailed logs for troubleshooting and monitoring
+- **Folder Comparison**: Recursively compare folders and delete duplicates from output
 
 ## 📋 Requirements
 
@@ -63,6 +64,10 @@ output_dir = "/media/m3u2strm"
 
 # Existing media directories (comma-separated)
 existing_media_dirs = "/media/movies,/media/tv"
+
+# Folders to compare with output for duplicate detection
+compare_movies_dir = "/path/to/movies/to/compare"
+compare_tv_dir = "/path/to/tv/to/compare"
 
 # Cache and log files
 sqlite_cache_file = "/path/to/cache.db"
@@ -143,6 +148,29 @@ Set `dry_run = true` in config.ini to test without creating files.
 ```bash
 python main.py --config /path/to/custom_config.ini
 ```
+
+### Folder Comparison and Duplicate Deletion
+The tool can recursively compare folders and delete duplicates from the output directory:
+
+```bash
+# Compare folders and delete duplicates (with confirmation)
+python main.py --compare-folders
+
+# Generate a report of duplicate folders without deleting
+python main.py --report
+
+# Run folder comparison in dry-run mode (preview only)
+# Set dry_run = true in config.ini, then run:
+python main.py --compare-folders
+```
+
+#### Folder Comparison Features:
+- **Recursive Comparison**: Compares folder structures deeply at all levels
+- **Same Relative Path Matching**: Identifies folders with identical names at identical relative paths
+- **Category-Specific**: Compare Movies and TV Shows separately
+- **Safe Deletion**: Only deletes from output directory, never from comparison directories
+- **Interactive Confirmation**: Requires user confirmation before deleting any folders
+- **Dry Run Mode**: Preview what would be deleted without making changes
 
 ## 📁 File Structure
 

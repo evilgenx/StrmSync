@@ -193,6 +193,56 @@ def _extract_season_episode(name: str) -> Optional[Tuple[int, int]]:
     return None
 
 
+class KeyGenerator:
+    """Unified key generation for all media types to eliminate code duplication."""
+    
+    @staticmethod
+    def generate_key(entry) -> str:
+        """
+        Generate a cache key for any VODEntry.
+        
+        Args:
+            entry: VODEntry object with category and raw_title
+            
+        Returns:
+            str: Cache key for the entry
+        """
+        from m3u_utils import Category
+        
+        if entry.category == Category.MOVIE:
+            return canonical_movie_key(entry.raw_title)
+        elif entry.category == Category.TVSHOW:
+            m = re.search(r"[sS](\d{1,2})\s*[eE](\d{1,2})", entry.raw_title)
+            if m:
+                season, episode = int(m.group(1)), int(m.group(2))
+                base = re.sub(r"[sS]\d{1,2}\s*[eE]\d{1,2}.*", "", entry.raw_title).strip()
+                return canonical_tv_key(base, season, episode)
+            else:
+                return make_cache_key(entry.raw_title)
+        elif entry.category == Category.DOCUMENTARY:
+            return canonical_movie_key(entry.raw_title)
+        else:
+            return make_cache_key(entry.raw_title)
+    
+    @staticmethod
+    def extract_season_episode(raw_title: str) -> tuple[str, int, int] | None:
+        """
+        Extract season and episode information from TV show title.
+        
+        Args:
+            raw_title: Raw title string from M3U entry
+            
+        Returns:
+            tuple: (base_title, season, episode) or None if no match
+        """
+        m = re.search(r"[sS](\d{1,2})\s*[eE](\d{1,2})", raw_title)
+        if m:
+            season, episode = int(m.group(1)), int(m.group(2))
+            base = re.sub(r"[sS]\d{1,2}\s*[eE]\d{1,2}.*", "", raw_title).strip()
+            return base, season, episode
+        return None
+
+
 def build_existing_media_cache(root: Path) -> Dict[str, str]:
     existing: Dict[str, str] = {}
     tv_count = 0
