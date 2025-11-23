@@ -1,0 +1,87 @@
+[paths]
+# Path to your M3U playlist file (can be local file path or URL)
+# Example URLs: "https://your-iptv-provider.com/playlist.m3u"
+# Example local: "/path/to/your/playlist.m3u"
+m3u = "https://example.com/get.php?username=YOUR_USERNAME&password=YOUR_PASSWORD&type=m3u_plus&output=ts"
+
+# Path to SQLite cache database (will be created if it doesn't exist)
+# Used to cache API responses and avoid duplicate lookups
+sqlite_cache_file = ./caches.db
+
+# Path to log file
+# Logs will be created in this location with rotation
+log_file = ./logs/M3U2Strm.log
+
+# Output directory for generated .strm files
+# This is where Jellyfin/Emby will look for your stream files
+output_dir = /path/to/your/jellyfin/library/
+
+# Existing media directories (comma-separated)
+# Used to avoid creating .strm files for content you already have locally
+existing_media_dirs = /path/to/your/existing/movies,/path/to/your/existing/tv
+
+# Folders to compare with output for duplicate detection (optional)
+# These directories are scanned to prevent duplicate entries
+compare_movies_dir = /path/to/compare/movies/
+compare_tv_dir = /path/to/compare/tv/shows/
+
+[api]
+# TMDB API key (REQUIRED for movie/TV show filtering)
+# Get your free API key from: https://www.themoviedb.org/settings/api
+tmdb_api = YOUR_TMDB_API_KEY_HERE
+
+# Emby API settings (optional)
+# Uncomment and configure if you want to use Emby API integration
+#emby_api_url = https://your-emby-server.com
+#emby_api_key = YOUR_EMBY_API_KEY
+
+[settings]
+# Dry run mode (true/false)
+# If true, no files will be written - useful for testing configuration
+dry_run = false
+
+# Maximum number of worker threads
+# Use "max" for automatic detection or specify a number (1-50)
+# Higher values process faster but use more system resources
+max_workers = 8
+
+# Write excluded entries report (true/false)
+# Creates a report of content that was excluded (non-US, duplicates, etc.)
+write_non_us_report = true
+
+[countries]
+# Allowed movie countries (comma-separated ISO 3166-1 codes)
+# A movie is kept if it has a release date in ANY of these countries
+# Common codes: US, GB, CA, AU, NZ
+allowed_movie_countries = US,GB,CA
+
+# Allowed TV show countries (comma-separated ISO 3166-1 codes)
+# A TV show is kept if any of its networks have origin_country in this list
+# Common codes: US, GB, CA, AU, NZ
+allowed_tv_countries = US,GB,CA
+
+[keywords]
+# TV show group keywords (comma-separated)
+# Used to categorize TV shows in your M3U playlist
+tv_group_keywords = ser,action,adventure,animation,comedy,crime,drama,family,kids,mystery,reality,scifi,western,docs,food
+
+# Documentary group keywords (comma-separated)
+# Used to identify documentary content
+doc_group_keywords = doc
+
+# Movie group keywords (comma-separated)
+# Used to categorize movies in your M3U playlist
+movie_group_keywords = 4k,actionm,adventurem,animationm,comedym,dramam,familym,fantasym,historym,horrorm,kidsm,mysterym,pi3,romancem,sciencefictionm,thrillerm,warm,westernm
+
+# Replay group keywords (comma-separated)
+# Used to identify replay/sports content
+replay_group_keywords = replays
+
+[ignore]
+# TV shows to ignore (comma-separated)
+# These TV shows will be excluded from .strm file generation
+tvshows = ufc,wwe,pokemon,aew
+
+# Movies to ignore (comma-separated)
+# These movies will be excluded from .strm file generation
+movies = ufc,pokemon,wwe,aew
