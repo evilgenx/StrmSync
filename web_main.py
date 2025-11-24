@@ -16,10 +16,11 @@ from pathlib import Path
 from typing import Dict, List, Optional, Any
 
 import uvicorn
-from fastapi import FastAPI, HTTPException, BackgroundTasks, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, BackgroundTasks, WebSocket, WebSocketDisconnect, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
 # Import existing application modules
@@ -86,10 +87,27 @@ start_time = time.time()
 # WebSocket connections
 websocket_connections: List[WebSocket] = []
 
+# Setup templates
+templates = Jinja2Templates(directory="templates")
+
 
 async def broadcast_message(message: str, message_type: str = "log"):
     """Broadcast message to all WebSocket connections"""
     data = {"type": message_type, "message": message, "timestamp": time.time()}
+    disconnected = []
+    for connection in websocket_connections:
+        try:
+            await connection.send_json(data)
+        except Exception:
+            disconnected.append(connection)
+    
+    for connection in disconnected:
+        websocket_connections.remove(connection)
+
+
+async def broadcast_job_update(job: JobStatus):
+    """Broadcast job update to all WebSocket connections"""
+    data = {"type": "job_update", "message": job.dict()}
     disconnected = []
     for connection in websocket_connections:
         try:
@@ -112,6 +130,9 @@ class JobManager:
         job = active_jobs[job_id]
         
         try:
+            # Get the current event loop
+            loop = asyncio.get_running_loop()
+            
             # Load configuration
             if config_path:
                 cfg = config.load_config(Path(config_path))
@@ -125,23 +146,24 @@ class JobManager:
             
             # Setup logging to capture to job logs
             class JobLogHandler(logging.Handler):
-                def __init__(self, job_id):
+                def __init__(self, job_id, loop):
                     super().__init__()
                     self.job_id = job_id
+                    self.loop = loop
                 
                 def emit(self, record):
                     if self.job_id in active_jobs:
                         log_entry = self.format(record)
                         active_jobs[self.job_id].logs.append(log_entry)
-                        asyncio.create_task(broadcast_message(log_entry, "log"))
+                        asyncio.run_coroutine_threadsafe(broadcast_message(log_entry, "log"), self.loop)
             
-            job_handler = JobLogHandler(job_id)
+            job_handler = JobLogHandler(job_id, loop)
             job_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
             logging.getLogger().addHandler(job_handler)
             
             try:
                 # Run the pipeline (this is the existing main.run_pipeline logic)
-                await self._run_pipeline_logic(cfg, job, dry_run)
+                await self._run_pipeline_logic(cfg, job, dry_run, loop)
                 
                 job.status = "completed"
                 job.end_time = time.time()
@@ -159,16 +181,25 @@ class JobManager:
             await broadcast_message(error_msg, "error")
             logging.error(f"Job {job_id} failed: {e}", exc_info=True)
     
-    async def _run_pipeline_logic(self, cfg, job: JobStatus, dry_run: bool):
-        """Core pipeline logic adapted from main.py"""
+    async def _run_pipeline_logic(self, cfg, job: JobStatus, dry_run: bool, loop):
+        """Core pipeline logic adapted from main.py with progress tracking"""
+        total_steps = 9
+        current_step = 0
+        
+        def update_progress(step_name: str, step_weight: int = 1):
+            nonlocal current_step
+            current_step += step_weight
+            job.current_step = step_name
+            job.progress = min(95, int((current_step / total_steps) * 100))
+            asyncio.run_coroutine_threadsafe(broadcast_job_update(job), loop)
         
         # Handle M3U source
-        job.current_step = "Processing M3U source"
+        update_progress("Processing M3U source", 1)
         await broadcast_message(f"Processing M3U from: {cfg.m3u}")
         m3u_path = get_m3u_path(cfg.m3u)
         
         # Initialize cache and existing media
-        job.current_step = "Building media cache"
+        update_progress("Building media cache", 1)
         await broadcast_message("Building existing media cache...")
         cache = SQLiteCache(cfg.sqlite_cache_file)
         existing = {}
@@ -178,7 +209,7 @@ class JobManager:
         existing_keys = set(existing.keys())
         
         # Parse M3U
-        job.current_step = "Parsing M3U playlist"
+        update_progress("Parsing M3U playlist", 1)
         await broadcast_message("Parsing M3U playlist...")
         entries = parse_m3u(
             m3u_path,
@@ -196,6 +227,7 @@ class JobManager:
         await broadcast_message(f"Filtered out {replay_count} REPLAY entries, keeping {len(entries)} VOD entries")
         
         # Deduplicate
+        update_progress("Deduplicating entries", 1)
         unique_entries = {}
         for e in entries:
             key = KeyGenerator.generate_key(e)
@@ -204,7 +236,7 @@ class JobManager:
         await broadcast_message(f"Deduplicated: {len(entries)} -> {len(unique_entries)} unique entries")
         
         # Check cache
-        job.current_step = "Checking cache"
+        update_progress("Checking cache", 1)
         await broadcast_message("Checking cache for existing entries...")
         strm_cache = cache.strm_cache_dict()
         to_check = []
@@ -226,7 +258,7 @@ class JobManager:
                 to_check.append(e)
         
         # Filter by market
-        job.current_step = "Filtering by country"
+        update_progress("Filtering by country", 1)
         await broadcast_message(f"Filtering {len(to_check)} entries by country...")
         allowed, excluded = split_by_market_filter(
             to_check,
@@ -245,7 +277,7 @@ class JobManager:
             write_excluded_report(cfg.output_dir / "excluded_entries.txt", excluded, len(allowed), cfg.write_non_us_report)
         
         # Process entries
-        job.current_step = "Creating STRM files"
+        update_progress("Creating STRM files", 1)
         await broadcast_message(f"Processing {len(allowed)} allowed entries...")
         
         existing_keys = set(existing.keys())
@@ -254,8 +286,12 @@ class JobManager:
         written_count = 0
         skipped_count = 0
         
+        # Track progress during file processing
+        total_entries = len(allowed)
+        processed_entries = 0
+        
         def process_entry(e):
-            nonlocal written_count, skipped_count
+            nonlocal written_count, skipped_count, processed_entries
             try:
                 key = KeyGenerator.generate_key(e)
                 
@@ -316,6 +352,13 @@ class JobManager:
                     
             except Exception as ex:
                 logging.error(f"Error processing entry {e.raw_title}: {ex}")
+            finally:
+                processed_entries += 1
+                # Update progress during processing (last 30% of total progress)
+                if total_entries > 0:
+                    file_progress = int((processed_entries / total_entries) * 30)
+                    job.progress = min(95, 65 + file_progress)
+                    asyncio.run_coroutine_threadsafe(broadcast_job_update(job), loop)
         
         # Process entries in parallel
         with ThreadPoolExecutor(max_workers=cfg.max_workers) as executor:
@@ -327,22 +370,29 @@ class JobManager:
             new_cache[key] = {"url": e.url, "path": None, "allowed": 0}
         
         if not dry_run:
-            cache.replace_strm_cache(new_cache)
+            update_progress("Cleaning up orphan STRMs", 1)
             await broadcast_message("Cleaning up orphan STRMs...")
             cleanup_strm_tree(cfg.output_dir, new_cache)
         
         # Refresh media servers
         if not dry_run:
             if getattr(cfg, "emby_api_url", None) and getattr(cfg, "emby_api_key", None):
+                update_progress("Refreshing media server", 1)
                 await broadcast_message("Triggering Emby library refresh...")
                 refresh_media_server(cfg.emby_api_url, cfg.emby_api_key, "emby")
             elif getattr(cfg, "jellyfin_api_url", None) and getattr(cfg, "jellyfin_api_key", None):
+                update_progress("Refreshing media server", 1)
                 await broadcast_message("Triggering Jellyfin library refresh...")
                 refresh_media_server(cfg.jellyfin_api_url, cfg.jellyfin_api_key, "jellyfin")
             else:
                 await broadcast_message("Skipping media server refresh (not configured)")
         else:
             await broadcast_message("Skipping media server refresh (dry_run mode)")
+        
+        # Final completion
+        job.progress = 100
+        job.current_step = "Completed"
+        asyncio.run_coroutine_threadsafe(broadcast_job_update(job), loop)
         
         summary = f"Process complete: {written_count} STRMs {'would be ' if dry_run else ''}written, {skipped_count} skipped, {len(excluded)} excluded"
         await broadcast_message(summary)
@@ -354,77 +404,9 @@ job_manager = JobManager()
 
 # API Endpoints
 @app.get("/", response_class=HTMLResponse)
-async def read_root():
+async def read_root(request: Request):
     """Serve the dashboard HTML"""
-    return """
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>M3U2strm_jf Dashboard</title>
-        <style>
-            body { font-family: Arial, sans-serif; margin: 40px; }
-            .status { background: #f0f0f0; padding: 20px; border-radius: 5px; }
-            .job { border: 1px solid #ccc; margin: 10px 0; padding: 10px; }
-            .running { background: #e8f5e8; }
-            .completed { background: #e8f5e8; }
-            .failed { background: #ffe8e8; }
-            .logs { background: #000; color: #fff; padding: 10px; font-family: monospace; height: 300px; overflow-y: scroll; }
-        </style>
-    </head>
-    <body>
-        <h1>M3U2strm_jf Dashboard</h1>
-        <div class="status">
-            <h2>System Status</h2>
-            <div id="status"></div>
-        </div>
-        
-        <div>
-            <h2>Jobs</h2>
-            <button onclick="startJob()">Start Processing Job</button>
-            <div id="jobs"></div>
-        </div>
-        
-        <div>
-            <h2>Real-time Logs</h2>
-            <div id="logs" class="logs"></div>
-        </div>
-        
-        <script>
-            const ws = new WebSocket(`ws://${window.location.host}/ws`);
-            ws.onmessage = function(event) {
-                const data = JSON.parse(event.data);
-                if (data.type === 'log') {
-                    const logs = document.getElementById('logs');
-                    logs.innerHTML += data.message + '\\n';
-                    logs.scrollTop = logs.scrollHeight;
-                } else if (data.type === 'status') {
-                    document.getElementById('status').innerHTML = JSON.stringify(data.message, null, 2);
-                }
-            };
-            
-            async function startJob() {
-                const response = await fetch('/api/v1/jobs/start', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ dry_run: false })
-                });
-                const job = await response.json();
-                console.log('Job started:', job);
-            }
-            
-            // Load initial status
-            fetch('/api/v1/status').then(r => r.json()).then(status => {
-                document.getElementById('status').innerHTML = JSON.stringify(status, null, 2);
-            });
-            
-            // Load jobs
-            fetch('/api/v1/jobs').then(r => r.json()).then(jobs => {
-                document.getElementById('jobs').innerHTML = JSON.stringify(jobs, null, 2);
-            });
-        </script>
-    </body>
-    </html>
-    """
+    return templates.TemplateResponse("index.html", {"request": request})
 
 
 @app.get("/api/v1/status")

@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>M3U2strm_jf Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #3498db;
+            --success-color: #27ae60;
+            --warning-color: #f39c12;
+            --danger-color: #e74c3c;
+            --light-bg: #f8f9fa;
+            --dark-bg: #343a40;
+        }
+        
+        body {
+            background-color: var(--light-bg);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        .dashboard-header {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            padding: 2rem 0;
+            margin-bottom: 2rem;
+        }
+        
+        .status-card {
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: transform 0.2s;
+            margin-bottom: 1rem;
+        }
+        
+        .status-card:hover {
+            transform: translateY(-2px);
+        }
+        
+        .job-card {
+            border-left: 4px solid var(--secondary-color);
+        }
+        
+        .job-running {
+            border-left-color: var(--warning-color);
+        }
+        
+        .job-completed {
+            border-left-color: var(--success-color);
+        }
+        
+        .job-failed {
+            border-left-color: var(--danger-color);
+        }
+        
+        .progress-container {
+            background-color: #e9ecef;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        
+        .progress-bar {
+            height: 8px;
+            background: linear-gradient(90deg, var(--secondary-color), var(--primary-color));
+            transition: width 0.3s ease;
+        }
+        
+        .log-container {
+            background-color: #1e1e1e;
+            color: #d4d4d4;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            border-radius: 5px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .log-entry {
+            padding: 2px 10px;
+            border-bottom: 1px solid #2d2d2d;
+        }
+        
+        .log-entry:last-child {
+            border-bottom: none;
+        }
+        
+        .log-info {
+            color: #569cd6;
+        }
+        
+        .log-warning {
+            color: #ffcc00;
+        }
+        
+        .log-error {
+            color: #f44747;
+        }
+        
+        .log-success {
+            color: #4ec9b0;
+        }
+        
+        .metric-card {
+            text-align: center;
+            padding: 1.5rem;
+        }
+        
+        .metric-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+        
+        .metric-label {
+            color: #6c757d;
+            font-size: 0.9rem;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, var(--secondary-color), var(--primary-color));
+            border: none;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1055;
+        }
+        
+        .step-indicator {
+            display: flex;
+            justify-content: space-between;
+            margin: 2rem 0;
+            position: relative;
+        }
+        
+        .step-indicator::before {
+            content: '';
+            position: absolute;
+            top: 15px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background-color: #e9ecef;
+            z-index: 1;
+        }
+        
+        .step {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+            z-index: 2;
+        }
+        
+        .step-circle {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background-color: #e9ecef;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+        
+        .step.active .step-circle {
+            background-color: var(--secondary-color);
+            color: white;
+        }
+        
+        .step.completed .step-circle {
+            background-color: var(--success-color);
+            color: white;
+        }
+        
+        .step-label {
+            font-size: 0.8rem;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="dashboard-header">
+        <div class="container">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <h1 class="display-5 fw-bold">
+                        <i class="fas fa-stream me-2"></i>M3U2strm_jf Dashboard
+                    </h1>
+                    <p class="lead mb-0">Convert M3U playlists to STRM files with ease</p>
+                </div>
+                <div class="col-md-4 text-end">
+                    <div class="btn-group">
+                        <button class="btn btn-outline-light" onclick="toggleTheme()">
+                            <i class="fas fa-moon"></i>
+                        </button>
+                        <button class="btn btn-outline-light" onclick="refreshAll()">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- System Status -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card status-card">
+                    <div class="card-header bg-white">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-heartbeat text-danger me-2"></i>System Status
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row" id="system-status">
+                            <div class="col-md-3 text-center">
+                                <div class="metric-card">
+                                    <div class="metric-value" id="uptime">--</div>
+                                    <div class="metric-label">Uptime</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 text-center">
+                                <div class="metric-card">
+                                    <div class="metric-value" id="active-jobs">--</div>
+                                    <div class="metric-label">Active Jobs</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 text-center">
+                                <div class="metric-card">
+                                    <div class="metric-value" id="total-jobs">--</div>
+                                    <div class="metric-label">Total Jobs</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 text-center">
+                                <div class="metric-card">
+                                    <div class="metric-value" id="version">--</div>
+                                    <div class="metric-label">Version</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Job Controls -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card status-card">
+                    <div class="card-header bg-white">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-cogs me-2"></i>Job Controls
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row align-items-center">
+                            <div class="col-md-8">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="dry-run-switch">
+                                    <label class="form-check-label" for="dry-run-switch">Dry Run Mode</label>
+                                </div>
+                                <small class="text-muted">Simulate processing without writing files</small>
+                            </div>
+                            <div class="col-md-4 text-end">
+                                <button class="btn btn-primary btn-lg" onclick="startJob()" id="start-job-btn">
+                                    <i class="fas fa-play me-2"></i>Start Processing
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Active Jobs -->
+        <div class="row mb-4" id="active-jobs-section">
+            <div class="col-12">
+                <div class="card status-card">
+                    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-tasks me-2"></i>Active Jobs
+                        </h5>
+                        <span class="badge bg-primary" id="active-jobs-count">0</span>
+                    </div>
+                    <div class="card-body" id="active-jobs-list">
+                        <div class="text-center text-muted py-4" id="no-active-jobs">
+                            <i class="fas fa-clock fa-2x mb-2"></i>
+                            <p>No active jobs</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Job History -->
+        <div class="row mb-4" id="job-history-section">
+            <div class="col-12">
+                <div class="card status-card">
+                    <div class="card-header bg-white">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-history me-2"></i>Job History
+                        </h5>
+                    </div>
+                    <div class="card-body" id="job-history-list">
+                        <div class="text-center text-muted py-4" id="no-job-history">
+                            <i class="fas fa-history fa-2x mb-2"></i>
+                            <p>No job history available</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Real-time Logs -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card status-card">
+                    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-terminal me-2"></i>Real-time Logs
+                        </h5>
+                        <div class="btn-group btn-group-sm">
+                            <button class="btn btn-outline-secondary" onclick="clearLogs()">
+                                <i class="fas fa-trash me-1"></i>Clear
+                            </button>
+                            <button class="btn btn-outline-secondary" onclick="toggleAutoScroll()" id="auto-scroll-btn">
+                                <i class="fas fa-arrow-down me-1"></i>Auto-scroll
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="log-container" id="logs">
+                            <div class="log-entry text-muted">
+                                <i class="fas fa-info-circle me-1"></i>Logs will appear here when jobs are running...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Job Details Modal -->
+    <div class="modal fade" id="jobDetailsModal" tabindex="-1" aria-labelledby="jobDetailsModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="jobDetailsModalLabel">Job Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row mb-3">
+                        <div class="col-md-3">
+                            <strong>Job ID:</strong>
+                            <div id="modal-job-id" class="text-muted">--</div>
+                        </div>
+                        <div class="col-md-3">
+                            <strong>Status:</strong>
+                            <div id="modal-job-status" class="text-muted">--</div>
+                        </div>
+                        <div class="col-md-3">
+                            <strong>Duration:</strong>
+                            <div id="modal-job-duration" class="text-muted">--</div>
+                        </div>
+                        <div class="col-md-3">
+                            <strong>Progress:</strong>
+                            <div id="modal-job-progress" class="text-muted">--</div>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <strong>Start Time:</strong>
+                            <div id="modal-job-start" class="text-muted">--</div>
+                        </div>
+                        <div class="col-md-6">
+                            <strong>End Time:</strong>
+                            <div id="modal-job-end" class="text-muted">--</div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <strong>Current Step:</strong>
+                        <div id="modal-job-step" class="text-muted">--</div>
+                    </div>
+                    
+                    <div class="mb-3" id="modal-job-error-section" style="display: none;">
+                        <div class="alert alert-danger">
+                            <strong>Error:</strong>
+                            <div id="modal-job-error" class="mt-1"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <strong>Job Logs</strong>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="copyLogs()">
+                                <i class="fas fa-copy me-1"></i>Copy Logs
+                            </button>
+                        </div>
+                        <div class="log-container" id="modal-job-logs" style="max-height: 400px;">
+                            <div class="log-entry text-muted">
+                                <i class="fas fa-info-circle me-1"></i>Loading logs...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Global state
+        let autoScroll = true;
+        let websocket = null;
+        let jobTemplates = {};
+
+        // Initialize WebSocket connection
+        function initWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws`;
+            
+            websocket = new WebSocket(wsUrl);
+            
+            websocket.onopen = function(event) {
+                console.log('WebSocket connected');
+                showToast('Connected to server', 'success');
+            };
+            
+            websocket.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                handleWebSocketMessage(data);
+            };
+            
+            websocket.onclose = function(event) {
+                console.log('WebSocket disconnected');
+                showToast('Disconnected from server', 'warning');
+                // Attempt to reconnect after 5 seconds
+                setTimeout(initWebSocket, 5000);
+            };
+            
+            websocket.onerror = function(error) {
+                console.error('WebSocket error:', error);
+                showToast('WebSocket connection error', 'error');
+            };
+        }
+
+        // Handle WebSocket messages
+        function handleWebSocketMessage(data) {
+            switch(data.type) {
+                case 'log':
+                    addLogEntry(data.message, 'info');
+                    break;
+                case 'error':
+                    addLogEntry(data.message, 'error');
+                    break;
+                case 'status':
+                    updateStatus(data.message);
+                    break;
+                case 'job_update':
+                    updateJob(data.message);
+                    break;
+            }
+        }
+
+        // Add log entry with proper styling
+        function addLogEntry(message, type = 'info') {
+            const logsContainer = document.getElementById('logs');
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry log-${type}`;
+            
+            const timestamp = new Date().toLocaleTimeString();
+            const icon = getLogIcon(type);
+            
+            logEntry.innerHTML = `
+                <span class="text-muted">[${timestamp}]</span>
+                ${icon} ${message}
+            `;
+            
+            logsContainer.appendChild(logEntry);
+            
+            if (autoScroll) {
+                logsContainer.scrollTop = logsContainer.scrollHeight;
+            }
+        }
+
+        // Get appropriate icon for log type
+        function getLogIcon(type) {
+            switch(type) {
+                case 'error': return '<i class="fas fa-exclamation-circle me-1"></i>';
+                case 'warning': return '<i class="fas fa-exclamation-triangle me-1"></i>';
+                case 'success': return '<i class="fas fa-check-circle me-1"></i>';
+                default: return '<i class="fas fa-info-circle me-1"></i>';
+            }
+        }
+
+        // Update system status
+        function updateStatus(status) {
+            document.getElementById('uptime').textContent = formatUptime(status.uptime);
+            document.getElementById('active-jobs').textContent = status.active_jobs;
+            document.getElementById('total-jobs').textContent = status.total_jobs;
+            document.getElementById('version').textContent = status.version;
+        }
+
+        // Format uptime for display
+        function formatUptime(seconds) {
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            return `${hours}h ${minutes}m`;
+        }
+
+        // Start a new job
+        async function startJob() {
+            const dryRun = document.getElementById('dry-run-switch').checked;
+            const startBtn = document.getElementById('start-job-btn');
+            
+            // Disable button and show loading state
+            startBtn.disabled = true;
+            startBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Starting...';
+            
+            try {
+                const response = await fetch('/api/v1/jobs/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ dry_run: dryRun })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const job = await response.json();
+                showToast(`Job ${job.job_id} started successfully`, 'success');
+                
+            } catch (error) {
+                console.error('Error starting job:', error);
+                showToast('Failed to start job: ' + error.message, 'error');
+            } finally {
+                // Re-enable button
+                startBtn.disabled = false;
+                startBtn.innerHTML = '<i class="fas fa-play me-2"></i>Start Processing';
+                
+                // Refresh job list
+                loadJobs();
+            }
+        }
+
+        // Load and display jobs
+        async function loadJobs() {
+            try {
+                const response = await fetch('/api/v1/jobs');
+                const jobs = await response.json();
+                
+                updateJobsDisplay(jobs);
+            } catch (error) {
+                console.error('Error loading jobs:', error);
+                showToast('Failed to load jobs', 'error');
+            }
+        }
+
+        // Update jobs display
+        function updateJobsDisplay(jobs) {
+            const activeJobsList = document.getElementById('active-jobs-list');
+            const jobHistoryList = document.getElementById('job-history-list');
+            const activeJobsCount = document.getElementById('active-jobs-count');
+            
+            const activeJobs = jobs.filter(job => job.status === 'running' || job.status === 'queued');
+            const completedJobs = jobs.filter(job => job.status === 'completed' || job.status === 'failed');
+            
+            // Update active jobs count
+            activeJobsCount.textContent = activeJobs.length;
+            
+            // Display active jobs
+            if (activeJobs.length === 0) {
+                document.getElementById('no-active-jobs').style.display = 'block';
+                activeJobsList.innerHTML = '<div id="no-active-jobs" class="text-center text-muted py-4"><i class="fas fa-clock fa-2x mb-2"></i><p>No active jobs</p></div>';
+            } else {
+                document.getElementById('no-active-jobs').style.display = 'none';
+                activeJobsList.innerHTML = activeJobs.map(job => createJobCard(job)).join('');
+            }
+            
+            // Display job history
+            if (completedJobs.length === 0) {
+                document.getElementById('no-job-history').style.display = 'block';
+                jobHistoryList.innerHTML = '<div id="no-job-history" class="text-center text-muted py-4"><i class="fas fa-history fa-2x mb-2"></i><p>No job history available</p></div>';
+            } else {
+                document.getElementById('no-job-history').style.display = 'none';
+                jobHistoryList.innerHTML = completedJobs.map(job => createJobCard(job)).join('');
+            }
+        }
+
+        // Create job card HTML
+        function createJobCard(job) {
+            const statusClass = `job-${job.status}`;
+            const statusIcon = getJobStatusIcon(job.status);
+            const duration = job.end_time ? (job.end_time - job.start_time).toFixed(1) + 's' : 'Running';
+            const progress = job.progress || 0;
+            
+            return `
+                <div class="card job-card ${statusClass} mb-3">
+                    <div class="card-body">
+                        <div class="row align-items-center">
+                            <div class="col-md-2">
+                                <div class="d-flex align-items-center">
+                                    ${statusIcon}
+                                    <strong class="ms-2 text-uppercase">${job.status}</strong>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <small class="text-muted">Job ID:</small>
+                                <div>${job.job_id}</div>
+                            </div>
+                            <div class="col-md-3">
+                                <small class="text-muted">Current Step:</small>
+                                <div>${job.current_step || 'Initializing'}</div>
+                            </div>
+                            <div class="col-md-2">
+                                <small class="text-muted">Duration:</small>
+                                <div>${duration}</div>
+                            </div>
+                            <div class="col-md-2 text-end">
+                                <button class="btn btn-sm btn-outline-primary" onclick="viewJobDetails('${job.job_id}')">
+                                    <i class="fas fa-eye me-1"></i>Details
+                                </button>
+                            </div>
+                        </div>
+                        ${job.status === 'running' ? `
+                        <div class="mt-2">
+                            <div class="progress-container">
+                                <div class="progress-bar" style="width: ${progress}%"></div>
+                            </div>
+                            <small class="text-muted">Progress: ${progress}%</small>
+                        </div>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+        }
+
+        // Get job status icon
+        function getJobStatusIcon(status) {
+            switch(status) {
+                case 'running': return '<i class="fas fa-spinner fa-spin text-warning"></i>';
+                case 'completed': return '<i class="fas fa-check-circle text-success"></i>';
+                case 'failed': return '<i class="fas fa-times-circle text-danger"></i>';
+                case 'queued': return '<i class="fas fa-clock text-secondary"></i>';
+                default: return '<i class="fas fa-question-circle text-muted"></i>';
+            }
+        }
+
+        // Update specific job
+        function updateJob(job) {
+            // This would be called via WebSocket for real-time updates
+            loadJobs(); // For now, just reload all jobs
+        }
+
+        // View job details
+        async function viewJobDetails(jobId) {
+            try {
+                // Fetch detailed job information
+                const response = await fetch(`/api/v1/jobs/${jobId}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const job = await response.json();
+                
+                // Update modal title
+                document.getElementById('jobDetailsModalLabel').textContent = `Job Details - ${jobId}`;
+
+                // Update job information in modal
+                document.getElementById('modal-job-id').textContent = jobId;
+                document.getElementById('modal-job-status').textContent = job.status;
+                document.getElementById('modal-job-duration').textContent = job.end_time 
+                    ? (job.end_time - job.start_time).toFixed(1) + 's' 
+                    : 'Running';
+                document.getElementById('modal-job-progress').textContent = (job.progress || 0) + '%';
+                document.getElementById('modal-job-start').textContent = new Date(job.start_time * 1000).toLocaleString();
+                document.getElementById('modal-job-end').textContent = job.end_time 
+                    ? new Date(job.end_time * 1000).toLocaleString()
+                    : 'N/A';
+                document.getElementById('modal-job-step').textContent = job.current_step || 'N/A';
+
+                // Handle error section
+                const errorSection = document.getElementById('modal-job-error-section');
+                if (job.status === 'failed' && job.error) {
+                    document.getElementById('modal-job-error').textContent = job.error;
+                    errorSection.style.display = 'block';
+                } else {
+                    errorSection.style.display = 'none';
+                }
+
+                // Update logs in modal
+                const modalLogsContainer = document.getElementById('modal-job-logs');
+                modalLogsContainer.innerHTML = '';
+
+                // Parse and display each log entry
+                job.logs.forEach(log => {
+                    const { level, message } = parseLogEntry(log);
+                    const logEntry = document.createElement('div');
+                    logEntry.className = `log-entry log-${level}`;
+                    
+                    const timestamp = new Date().toLocaleTimeString();
+                    const icon = getLogIcon(level);
+                    
+                    logEntry.innerHTML = `
+                        <span class="text-muted">[${timestamp}]</span>
+                        ${icon} ${message}
+                    `;
+                    
+                    modalLogsContainer.appendChild(logEntry);
+                });
+
+                // Show the modal
+                const modal = new bootstrap.Modal(document.getElementById('jobDetailsModal'));
+                modal.show();
+
+            } catch (error) {
+                console.error('Error fetching job details:', error);
+                showToast('Failed to load job details', 'error');
+            }
+        }
+
+        // Parse log entry to extract level and message
+        function parseLogEntry(logString) {
+            // Default values
+            let level = 'info';
+            let message = logString;
+            
+            // Try to parse log level from the string
+            const logLower = logString.toLowerCase();
+            if (logLower.includes('error') || logLower.includes('failed')) {
+                level = 'error';
+            } else if (logLower.includes('warning')) {
+                level = 'warning';
+            } else if (logLower.includes('success') || logLower.includes('completed')) {
+                level = 'success';
+            }
+            
+            return { level, message };
+        }
+
+        // Copy logs to clipboard
+        async function copyLogs() {
+            try {
+                const logsContainer = document.getElementById('modal-job-logs');
+                const logEntries = logsContainer.querySelectorAll('.log-entry');
+                let logText = '';
+                logEntries.forEach(entry => {
+                    logText += entry.textContent + '\n';
+                });
+                
+                await navigator.clipboard.writeText(logText);
+                showToast('Logs copied to clipboard', 'success');
+            } catch (err) {
+                console.error('Failed to copy logs:', err);
+                showToast('Failed to copy logs', 'error');
+            }
+        }
+
+        // Clear logs
+        function clearLogs() {
+            document.getElementById('logs').innerHTML = `
+                <div class="log-entry text-muted">
+                    <i class="fas fa-info-circle me-1"></i>Logs cleared at ${new Date().toLocaleTimeString()}
+                </div>
+            `;
+        }
+
+        // Toggle auto-scroll
+        function toggleAutoScroll() {
+            autoScroll = !autoScroll;
+            const btn = document.getElementById('auto-scroll-btn');
+            if (autoScroll) {
+                btn.innerHTML = '<i class="fas fa-arrow-down me-1"></i>Auto-scroll';
+                btn.classList.remove('btn-primary');
+                btn.classList.add('btn-outline-secondary');
+            } else {
+                btn.innerHTML = '<i class="fas fa-pause me-1"></i>Paused';
+                btn.classList.remove('btn-outline-secondary');
+                btn.classList.add('btn-primary');
+            }
+        }
+
+        // Show toast notification
+        function showToast(message, type = 'info') {
+            const toastContainer = document.getElementById('toast-container');
+            const toastId = 'toast-' + Date.now();
+            
+            const toast = document.createElement('div');
+            toast.className = `toast align-items-center text-bg-${type} border-0`;
+            toast.id = toastId;
+            toast.setAttribute('role', 'alert');
+            toast.setAttribute('aria-live', 'assertive');
+            toast.setAttribute('aria-atomic', 'true');
+            
+            toast.innerHTML = `
+                <div class="d-flex">
+                    <div class="toast-body">
+                        ${message}
+                    </div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                </div>
+            `;
+            
+            toastContainer.appendChild(toast);
+            
+            const bsToast = new bootstrap.Toast(toast, { delay: 3000 });
+            bsToast.show();
+            
+            // Remove toast from DOM after it's hidden
+            toast.addEventListener('hidden.bs.toast', () => {
+                toast.remove();
+            });
+        }
+
+        // Toggle theme (placeholder for future implementation)
+        function toggleTheme() {
+            showToast('Theme toggle feature coming soon!', 'info');
+        }
+
+        // Refresh all data
+        function refreshAll() {
+            loadStatus();
+            loadJobs();
+            showToast('Data refreshed', 'success');
+        }
+
+        // Load system status
+        async function loadStatus() {
+            try {
+                const response = await fetch('/api/v1/status');
+                const status = await response.json();
+                updateStatus(status);
+            } catch (error) {
+                console.error('Error loading status:', error);
+            }
+        }
+
+        // Initialize application
+        document.addEventListener('DOMContentLoaded', function() {
+            initWebSocket();
+            loadStatus();
+            loadJobs();
+            
+            // Auto-refresh status every 30 seconds
+            setInterval(loadStatus, 30000);
+        });
+    </script>
+</body>
+</html>
