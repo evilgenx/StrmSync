@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-M3U2strm_jf Web Dashboard & API
+StrmSync Web Dashboard & API
 FastAPI-based web interface for managing M3U to STRM conversion
 """
 
@@ -65,8 +65,8 @@ class ConfigUpdate(BaseModel):
 
 # Global state
 app = FastAPI(
-    title="M3U2strm_jf Web Dashboard",
-    description="Web interface for M3U to STRM conversion",
+    title="StrmSync Dashboard",
+    description="StrmSync web interface for M3U to STRM conversion",
     version="1.0.0"
 )
 
@@ -481,14 +481,14 @@ def main():
     """Main entry point for web server"""
     import argparse
     
-    parser = argparse.ArgumentParser(description="M3U2strm_jf Web Dashboard")
+    parser = argparse.ArgumentParser(description="StrmSync Web Dashboard")
     parser.add_argument("--host", default="127.0.0.1", help="Host to bind to")
     parser.add_argument("--port", type=int, default=8000, help="Port to bind to")
     parser.add_argument("--reload", action="store_true", help="Enable auto-reload (development)")
     
     args = parser.parse_args()
     
-    print(f"Starting M3U2strm_jf Web Dashboard on http://{args.host}:{args.port}")
+    print(f"Starting StrmSync Web Dashboard on http://{args.host}:{args.port}")
     print("Press Ctrl+C to stop")
     
     uvicorn.run(

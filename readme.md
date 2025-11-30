@@ -1,4 +1,9 @@
-# M3U2strm_jf - IPTV VOD to .strm Converter
+# StrmSync - IPTV VOD to .strm Converter
+
+## 🙏 Credits
+
+Forked from [sftech13/m3u2strm](https://github.com/sftech13/m3u2strm) by sftech13.  
+Enhanced with Jellyfin integration, web interface, folder comparison for duplicate cleanup, advanced keyword filtering, documentary support, and more.
 
 A sophisticated Python tool that converts IPTV VOD playlists into `.strm` files for media servers like Jellyfin and Emby, with intelligent filtering, caching, and library management.
 
@@ -36,8 +41,8 @@ A sophisticated Python tool that converts IPTV VOD playlists into `.strm` files 
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/evilgenx/M3U2strm_jf.git
-   cd M3U2strm_jf
+   git clone https://github.com/evilgenx/StrmSync.git
+   cd StrmSync
    ```
 
 2. **Install dependencies**:
@@ -180,7 +185,7 @@ python main.py --compare-folders
 ## 📁 File Structure
 
 ```
-M3U2strm_jf/
+StrmSync/
 ├── main.py              # Main orchestration script
 ├── config.py            # Configuration management
 ├── core.py              # Core logic: media scanning, caching, title normalization
