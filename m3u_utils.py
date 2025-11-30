@@ -16,6 +16,7 @@ from core import (
 )
 from url_utils import get_m3u_path
 from api_utils import RateLimiter, BatchProcessor, EnhancedTMDbClient, calculate_optimal_batch_size, chunk_list
+from pre_filter_utils import ContentPreFilter
 
 
 @dataclass
@@ -383,6 +384,7 @@ def split_by_market_filter(
     max_retries: int = 5,
     cache: Optional['SQLiteCache'] = None,
     cache_ttl_days: int = 7,
+    config: Optional[Config] = None,
 ) -> Tuple[List[VODEntry], List[VODEntry]]:
     if max_workers is None:
         max_workers = 10
@@ -395,6 +397,24 @@ def split_by_market_filter(
         "docs_checked": 0, "docs_allowed": 0, "docs_excluded": 0,
         "ignored": 0,
     }
+
+    # Initialize pre-filter
+    if config and getattr(config, 'enable_pre_filter', True):
+        pre_filter = ContentPreFilter(config)
+    else:
+        # Fallback to temporary config if none provided
+        from config import Config
+        config_obj = Config(
+            m3u="",
+            sqlite_cache_file=Path(""),
+            log_file=Path(""),
+            output_dir=Path(""),
+            existing_media_dirs=[],
+            tmdb_api=api_key,
+            allowed_movie_countries=allowed_movie_countries,
+            allowed_tv_countries=allowed_tv_countries,
+        )
+        pre_filter = ContentPreFilter(config_obj)
 
     def with_retry(fn, *args, **kwargs):
         delay = 1
@@ -419,6 +439,14 @@ def split_by_market_filter(
         if any(word.lower() in e.raw_title.lower() for word in ignore_list):
             logging.debug(f"Ignored by keyword: {e.raw_title}")
             return (e, False, "ignored")
+        
+        # Pre-filter check to skip TMDb API calls for obvious non-US content
+        should_skip, reason, confidence = pre_filter.should_skip_tmdb(e.raw_title)
+        if should_skip:
+            logging.debug(f"Pre-filter bypass for '{e.raw_title}': {reason} (confidence: {confidence})")
+            excluded.append(e)
+            return (e, False, "pre_filtered")
+        
         if e.category == Category.MOVIE:
             year = extract_year(e.raw_title)
             title_clean = sanitize_title(e.raw_title)
@@ -497,6 +525,7 @@ def split_by_market_filter_enhanced(
     api_backoff_factor: float = 2.0,
     enable_batch_processing: bool = True,
     title_similarity_threshold: float = 0.85,
+    config: Optional[Config] = None,
 ) -> Tuple[List[VODEntry], List[VODEntry]]:
     """
     Enhanced filtering with rate limiting, batch processing, and smarter deduplication.
@@ -536,7 +565,7 @@ def split_by_market_filter_enhanced(
         "api_calls_saved": 0,
     }
     
-    # Initialize rate limiter and batch processor
+    # Initialize rate limiter, batch processor, and pre-filter
     rate_limiter = RateLimiter(api_delay)
     batch_processor = BatchProcessor(title_similarity_threshold)
     tmdb_client = EnhancedTMDbClient(
@@ -548,7 +577,25 @@ def split_by_market_filter_enhanced(
         backoff_factor=api_backoff_factor
     )
     
-    # Pre-filter entries by ignore keywords
+    # Initialize pre-filter
+    if config and getattr(config, 'enable_pre_filter', True):
+        pre_filter = ContentPreFilter(config)
+    else:
+        # Fallback to temporary config if none provided
+        from config import Config
+        config_obj = Config(
+            m3u="",
+            sqlite_cache_file=Path(""),
+            log_file=Path(""),
+            output_dir=Path(""),
+            existing_media_dirs=[],
+            tmdb_api=api_key,
+            allowed_movie_countries=allowed_movie_countries,
+            allowed_tv_countries=allowed_tv_countries,
+        )
+        pre_filter = ContentPreFilter(config_obj)
+    
+    # Pre-filter entries by ignore keywords and pre-filter
     pre_filtered_entries = []
     for e in entries:
         ignore_list = ignore_keywords.get(
@@ -561,9 +608,17 @@ def split_by_market_filter_enhanced(
             excluded.append(e)
             stats["ignored"] += 1
             continue
+        
+        # Pre-filter check to skip TMDb API calls for obvious non-US content
+        should_skip, reason, confidence = pre_filter.should_skip_tmdb(e.raw_title)
+        if should_skip:
+            logging.debug(f"Pre-filter bypass for '{e.raw_title}': {reason} (confidence: {confidence})")
+            excluded.append(e)
+            continue
+        
         pre_filtered_entries.append(e)
     
-    logging.info(f"Pre-filtered {len(entries)} entries, {len(pre_filtered_entries)} remaining after keyword filtering")
+    logging.info(f"Pre-filtered {len(entries)} entries, {len(pre_filtered_entries)} remaining after keyword and pre-filtering")
     
     # Group entries by category for batch processing
     movie_entries = [e for e in pre_filtered_entries if e.category == Category.MOVIE]
@@ -611,6 +666,9 @@ def split_by_market_filter_enhanced(
     logging.info(f"  Cache hits: {stats['cache_hits']}")
     logging.info(f"  API calls saved via batching: {stats['api_calls_saved']}")
     logging.info(f"  Total: {len(allowed)} allowed, {len(excluded)} excluded")
+    
+    # Log pre-filter statistics
+    pre_filter.log_stats()
     
     return allowed, excluded
 

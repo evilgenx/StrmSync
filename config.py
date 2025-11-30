@@ -64,8 +64,12 @@ class Config:
     api_max_retries: int = 5  # Maximum retries for API calls
     api_backoff_factor: float = 2.0  # Exponential backoff multiplier for retries
     # Batch processing settings
-    enable_batch_processing: bool = True  # Enable smarter deduplication and batch processing
+    enable_batch_processing: bool = True  # Enable smarter deduplication
     title_similarity_threshold: float = 0.85  # Group similar titles together (0-1)
+    
+    # Pre-filter settings
+    enable_pre_filter: bool = True  # Enable pre-filtering to skip obvious non-US content
+    pre_filter_confidence_threshold: float = 0.70  # Minimum confidence to bypass TMDb
 
 
 class ConfigValidator:

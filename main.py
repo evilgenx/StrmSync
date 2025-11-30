@@ -215,6 +215,7 @@ def run_pipeline():
             api_backoff_factor=getattr(cfg, 'api_backoff_factor', 2.0),
             enable_batch_processing=getattr(cfg, 'enable_batch_processing', True),
             title_similarity_threshold=getattr(cfg, 'title_similarity_threshold', 0.85),
+            config=cfg,  # Pass the config object for pre-filtering
         )
     else:
         logging.info("Using standard filtering")
@@ -227,6 +228,7 @@ def run_pipeline():
             max_workers=cfg.max_workers,
             cache=cache,
             cache_ttl_days=cfg.tmdb_cache_ttl_days,
+            config=cfg,  # Pass the config object for pre-filtering
         )
     allowed.extend(reused_allowed)
     excluded.extend(reused_excluded)

@@ -54,6 +54,13 @@ max_workers = 8
 # Creates a report of content that was excluded (non-US, duplicates, etc.)
 write_non_us_report = true
 
+# Pre-filter settings
+# Enable pre-filtering to skip obvious non-US content before TMDb API calls
+enable_pre_filter = true
+# Minimum confidence threshold to bypass TMDb (0.0 to 1.0)
+# Higher values are more conservative (only skip with high confidence)
+pre_filter_confidence_threshold = 0.70
+
 [library_management]
 # Enable advanced library management features
 enable_quality_scoring = true
