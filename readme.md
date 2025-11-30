@@ -23,6 +23,14 @@ A sophisticated Python tool that converts IPTV VOD playlists into `.strm` files 
 - **Live TV Filtering**: Automatically exclude REPLAY/live TV channels
 - **Duplicate Detection**: Smart deduplication of identical entries
 
+### Advanced Library Management 🆕
+- **Content Quality Scoring**: Rate streams based on resolution, uptime, response time, and error rate
+- **Stream Health Monitoring**: Track availability and performance of all streams in real-time
+- **Automatic Stream Replacement**: Find alternative streams when primary ones fail
+- **Library Analytics**: Comprehensive statistics and insights about your media library
+- **Health Dashboard**: Visual monitoring of library health and performance trends
+- **Low Quality Alerts**: Identify streams that need attention or replacement
+
 ### Advanced Features
 - **SQLite Caching**: Persistent cache to avoid redundant API calls and processing
 - **Local Media Detection**: Skip creating .strm files for content you already own
@@ -144,6 +152,22 @@ write_non_us_report = true
 - `max_workers`: Thread count for parallel processing ("max" for CPU count)
 - `write_non_us_report`: Generate excluded content report
 
+#### Advanced Library Management Section
+- `enable_quality_scoring`: Enable content quality scoring (true/false)
+- `enable_health_monitoring`: Enable stream health monitoring (true/false)
+- `enable_auto_replacement`: Enable automatic stream replacement (true/false)
+- `enable_analytics`: Enable library analytics (true/false)
+- `health_check_interval`: Health check interval in seconds (default: 3600)
+- `health_check_timeout`: Health check timeout in seconds (default: 10)
+- `health_check_mode`: Health check sampling mode ('all', 'random', 'percentage') (default: 'random')
+- `health_check_sample_size`: Number of random files to test per cycle (default: 50)
+- `health_check_sample_percentage`: Percentage of library to test (0.0-1.0, used when mode='percentage') (default: 0.1)
+- `resolution_weight`: Weight for resolution in quality scoring (default: 0.4)
+- `uptime_weight`: Weight for uptime in quality scoring (default: 0.3)
+- `response_time_weight`: Weight for response time in quality scoring (default: 0.2)
+- `error_rate_weight`: Weight for error rate in quality scoring (default: 0.1)
+- `min_quality_threshold`: Minimum quality score for stream replacement (default: 5.0)
+
 ## 🚀 Usage
 
 ### Basic Usage
@@ -157,6 +181,52 @@ Set `dry_run = true` in config.ini to test without creating files.
 ### Manual Run with Custom Config
 ```bash
 python main.py --config /path/to/custom_config.ini
+```
+
+### Health Monitoring with Random Sampling
+The system now supports intelligent health monitoring with random sampling to efficiently check stream availability:
+
+```bash
+# Run background health monitoring (daemon mode)
+python main.py --background-health
+```
+
+#### Sampling Modes:
+- **Random Mode** (default): Test a random selection of streams per cycle
+- **All Mode**: Test all streams (resource-intensive)
+- **Percentage Mode**: Test a percentage of your library
+
+#### Configuration Options:
+```ini
+[library_management]
+# Health check sampling settings
+health_check_mode = random          # 'all', 'random', or 'percentage'
+health_check_sample_size = 50       # Number of random files to test
+health_check_sample_percentage = 0.1 # 10% of total library (when mode=percentage)
+health_check_interval = 3600        # Check every hour
+```
+
+#### Benefits of Random Sampling:
+- **Efficient**: Tests only a subset of your library per cycle
+- **Comprehensive**: Over time, all streams get tested through rotation
+- **Configurable**: Control how aggressive testing should be
+- **Resource-Friendly**: Reduces network load and processing time
+
+#### Example Scenarios:
+```ini
+# Light monitoring: Test 20 random files every 2 hours
+health_check_mode = random
+health_check_sample_size = 20
+health_check_interval = 7200
+
+# Heavy monitoring: Test 20% of library every hour
+health_check_mode = percentage
+health_check_sample_percentage = 0.2
+health_check_interval = 3600
+
+# Complete monitoring: Test all files every 6 hours (use with caution)
+health_check_mode = all
+health_check_interval = 21600
 ```
 
 ### Folder Comparison and Duplicate Deletion

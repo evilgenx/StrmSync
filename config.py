@@ -30,6 +30,25 @@ class Config:
     jellyfin_api_key: Optional[str] = None
     compare_movies_dir: Optional[Path] = None
     compare_tv_dir: Optional[Path] = None
+    # Advanced Library Management settings
+    enable_quality_scoring: bool = True
+    enable_health_monitoring: bool = True
+    enable_auto_replacement: bool = False
+    enable_analytics: bool = True
+    health_check_interval: int = 3600
+    health_check_timeout: int = 10
+    health_check_retries: int = 3
+    resolution_weight: float = 0.4
+    uptime_weight: float = 0.3
+    response_time_weight: float = 0.2
+    error_rate_weight: float = 0.1
+    min_quality_threshold: float = 5.0
+    max_replacement_attempts: int = 3
+    replacement_cooldown: int = 86400
+    # Health check sampling settings
+    health_check_mode: str = "random"  # "all", "random", "percentage"
+    health_check_sample_size: int = 50  # Number of random files to test
+    health_check_sample_percentage: float = 0.0  # Percentage of total library to test (0.0 to 1.0)
 
 
 class ConfigValidator:

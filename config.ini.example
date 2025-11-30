@@ -54,6 +54,37 @@ max_workers = 8
 # Creates a report of content that was excluded (non-US, duplicates, etc.)
 write_non_us_report = true
 
+[library_management]
+# Enable advanced library management features
+enable_quality_scoring = true
+enable_health_monitoring = true
+enable_auto_replacement = false
+enable_analytics = true
+
+# Health check settings
+health_check_interval = 3600  # seconds (1 hour)
+health_check_timeout = 10     # seconds
+health_check_retries = 3
+
+# Quality scoring weights (must add up to 1.0)
+resolution_weight = 0.4
+uptime_weight = 0.3
+response_time_weight = 0.2
+error_rate_weight = 0.1
+
+# Auto-replacement settings
+min_quality_threshold = 5.0
+max_replacement_attempts = 3
+replacement_cooldown = 86400  # 24 hours
+
+# Health check sampling settings
+# Options: 'all', 'random', 'percentage'
+health_check_mode = random
+# Number of random files to test per health check cycle
+health_check_sample_size = 50
+# Percentage of total library to test (0.0 to 1.0, used when mode=percentage)
+health_check_sample_percentage = 0.1  # 10% of library
+
 [countries]
 # Allowed movie countries (comma-separated ISO 3166-1 codes)
 # A movie is kept if it has a release date in ANY of these countries

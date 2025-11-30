@@ -11,7 +11,7 @@ import os
 import sqlite3
 import time
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 
@@ -30,6 +30,13 @@ from m3u_utils import parse_m3u, split_by_market_filter, Category, VODEntry
 from strm_utils import write_strm_file, cleanup_strm_tree, movie_strm_path, tv_strm_path, doc_strm_path
 from url_utils import get_m3u_path
 from main import refresh_media_server, write_excluded_report
+from library_management import (
+    StreamHealthMonitor, 
+    StreamQuality, 
+    LibraryAnalytics,
+    HealthStatus,
+    StreamHealth
+)
 
 
 # Pydantic models for API
@@ -475,6 +482,168 @@ async def websocket_endpoint(websocket: WebSocket):
             await websocket.receive_text()
     except WebSocketDisconnect:
         websocket_connections.remove(websocket)
+
+
+# Advanced Library Management API Endpoints
+@app.get("/api/v1/library/health")
+async def get_library_health():
+    """Get overall library health statistics"""
+    cfg = config.load_config(Path(__file__).parent / "config.ini")
+    cache = SQLiteCache(cfg.sqlite_cache_file)
+    health_monitor = StreamHealthMonitor(cfg, cache)
+    
+    health_summary = health_monitor.get_library_health_summary()
+    return health_summary
+
+
+@app.get("/api/v1/library/health/streams")
+async def get_low_quality_streams(threshold: float = 5.0):
+    """Get streams with quality scores below threshold"""
+    cfg = config.load_config(Path(__file__).parent / "config.ini")
+    cache = SQLiteCache(cfg.sqlite_cache_file)
+    health_monitor = StreamHealthMonitor(cfg, cache)
+    
+    streams = health_monitor.get_low_quality_streams(threshold)
+    
+    # Convert to serializable format
+    result = []
+    for stream in streams:
+        result.append({
+            'strm_key': stream.strm_key,
+            'status': stream.status.value,
+            'response_time': stream.response_time,
+            'last_tested': stream.last_tested.isoformat(),
+            'success_count': stream.success_count,
+            'error_count': stream.error_count,
+            'resolution': stream.resolution,
+            'quality_score': stream.quality_score,
+            'error_message': stream.error_message,
+            'success_rate': stream.success_rate,
+            'error_rate': stream.error_rate
+        })
+    
+    return result
+
+
+@app.get("/api/v1/library/analytics/quality-distribution")
+async def get_quality_distribution():
+    """Get distribution of stream quality scores"""
+    cfg = config.load_config(Path(__file__).parent / "config.ini")
+    cache = SQLiteCache(cfg.sqlite_cache_file)
+    analytics = LibraryAnalytics(cfg, cache)
+    
+    distribution = analytics.get_quality_distribution()
+    return distribution
+
+
+@app.get("/api/v1/library/analytics/health-trends")
+async def get_health_trends(days: int = 30):
+    """Get health trends over time"""
+    cfg = config.load_config(Path(__file__).parent / "config.ini")
+    cache = SQLiteCache(cfg.sqlite_cache_file)
+    analytics = LibraryAnalytics(cfg, cache)
+    
+    trends = analytics.get_health_trends(days)
+    return trends
+
+
+@app.get("/api/v1/library/analytics/content-gaps")
+async def get_content_gaps():
+    """Get content gap analysis"""
+    cfg = config.load_config(Path(__file__).parent / "config.ini")
+    cache = SQLiteCache(cfg.sqlite_cache_file)
+    analytics = LibraryAnalytics(cfg, cache)
+    
+    gaps = analytics.get_content_gaps()
+    return gaps
+
+
+@app.post("/api/v1/library/health/check/{strm_key}")
+async def check_stream_health(strm_key: str):
+    """Manually check health of a specific stream"""
+    cfg = config.load_config(Path(__file__).parent / "config.ini")
+    cache = SQLiteCache(cfg.sqlite_cache_file)
+    health_monitor = StreamHealthMonitor(cfg, cache)
+    
+    # Get the URL from cache
+    strm_cache = cache.strm_cache_dict()
+    if strm_key not in strm_cache:
+        raise HTTPException(status_code=404, detail="Stream not found")
+    
+    entry_data = strm_cache[strm_key]
+    if not entry_data.get('url'):
+        raise HTTPException(status_code=400, detail="No URL found for stream")
+    
+    # Perform health check
+    health = await health_monitor.check_stream_health(strm_key, entry_data['url'])
+    
+    return {
+        'strm_key': health.strm_key,
+        'status': health.status.value,
+        'response_time': health.response_time,
+        'last_tested': health.last_tested.isoformat(),
+        'success_count': health.success_count,
+        'error_count': health.error_count,
+        'resolution': health.resolution,
+        'quality_score': health.quality_score,
+        'error_message': health.error_message,
+        'success_rate': health.success_rate,
+        'error_rate': health.error_rate
+    }
+
+
+@app.get("/api/v1/library/streams")
+async def get_all_streams():
+    """Get all streams with their health and quality information"""
+    cfg = config.load_config(Path(__file__).parent / "config.ini")
+    cache = SQLiteCache(cfg.sqlite_cache_file)
+    health_monitor = StreamHealthMonitor(cfg, cache)
+    
+    # Get all STRM entries
+    strm_cache = cache.strm_cache_dict()
+    
+    streams = []
+    for strm_key, entry_data in strm_cache.items():
+        if entry_data.get('allowed') == 1:
+            health = health_monitor.get_health_status(strm_key)
+            
+            stream_info = {
+                'strm_key': strm_key,
+                'url': entry_data.get('url'),
+                'path': entry_data.get('path'),
+                'allowed': entry_data.get('allowed')
+            }
+            
+            if health:
+                stream_info.update({
+                    'status': health.status.value,
+                    'response_time': health.response_time,
+                    'last_tested': health.last_tested.isoformat(),
+                    'success_count': health.success_count,
+                    'error_count': health.error_count,
+                    'resolution': health.resolution,
+                    'quality_score': health.quality_score,
+                    'error_message': health.error_message,
+                    'success_rate': health.success_rate,
+                    'error_rate': health.error_rate
+                })
+            else:
+                stream_info.update({
+                    'status': 'unknown',
+                    'response_time': 0,
+                    'last_tested': None,
+                    'success_count': 0,
+                    'error_count': 0,
+                    'resolution': None,
+                    'quality_score': 0,
+                    'error_message': None,
+                    'success_rate': 0,
+                    'error_rate': 0
+                })
+            
+            streams.append(stream_info)
+    
+    return streams
 
 
 def main():

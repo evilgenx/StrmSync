@@ -2,6 +2,8 @@ import logging
 import re
 import concurrent.futures
 import argparse
+import asyncio
+import json
 from pathlib import Path
 from collections import defaultdict
 import requests
@@ -31,6 +33,12 @@ from strm_utils import (
     doc_strm_path,
 )
 from url_utils import get_m3u_path
+from library_management import (
+    StreamHealthMonitor,
+    StreamQuality,
+    LibraryAnalytics,
+    periodic_health_check
+)
 
 
 def refresh_media_server(api_url: str, api_key: str, server_type: str = "emby"):
@@ -280,6 +288,59 @@ def run_pipeline():
             logging.info("Skipping media server refresh (not configured)")
     else:
         logging.info("Skipping media server refresh (dry_run mode)")
+    # Advanced Library Management: Perform health checks and quality scoring
+    if getattr(cfg, 'enable_quality_scoring', False) or getattr(cfg, 'enable_health_monitoring', False):
+        logging.info("Running Advanced Library Management features...")
+        
+        # Initialize library management components
+        health_monitor = StreamHealthMonitor(cfg, cache)
+        analytics = LibraryAnalytics(cfg, cache)
+        
+        # Check health of newly created streams
+        if getattr(cfg, 'enable_health_monitoring', False):
+            logging.info("Performing health checks on new streams...")
+            for e in allowed:
+                key = KeyGenerator.generate_key(e)
+                if key in new_cache and new_cache[key].get('allowed') == 1:
+                    # Run health check in a thread pool since it involves network requests
+                    def check_health(key, url):
+                        try:
+                            # Convert to async function call
+                            import asyncio
+                            loop = asyncio.new_event_loop()
+                            asyncio.set_event_loop(loop)
+                            health = loop.run_until_complete(health_monitor.check_stream_health(key, url))
+                            loop.close()
+                            return health
+                        except Exception as ex:
+                            logging.error(f"Health check failed for {key}: {ex}")
+                            return None
+                    
+                    # Run health check in thread pool
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+                        future = executor.submit(check_health, key, e.url)
+                        health = future.result()
+                        
+                        if health:
+                            logging.info(f"Stream {key}: {health.status.value}, quality: {health.quality_score}")
+        
+        # Update analytics
+        if getattr(cfg, 'enable_analytics', False):
+            logging.info("Updating library analytics...")
+            
+            # Record metrics
+            analytics.record_metric('strms_written', written_count, {'category': 'processing'})
+            analytics.record_metric('strms_skipped', skipped_count, {'category': 'processing'})
+            analytics.record_metric('entries_excluded', len(excluded), {'category': 'processing'})
+            
+            # Get health summary
+            health_summary = health_monitor.get_library_health_summary()
+            analytics.record_metric('library_health_percentage', health_summary['health_percentage'])
+            analytics.record_metric('avg_quality_score', health_summary['avg_quality'])
+            
+            logging.info(f"Library health: {health_summary['healthy']}/{health_summary['total_streams']} healthy, "
+                        f"avg quality: {health_summary['avg_quality']}")
+    
     logging.info(
         f"VOD/Strm process complete: {written_count} STRMs written, {skipped_count} skipped, {len(excluded)} excluded"
     )
@@ -368,6 +429,11 @@ def main():
         type=Path,
         help="Path to custom config file (default: config.ini in script directory)"
     )
+    parser.add_argument(
+        "--background-health",
+        action="store_true",
+        help="Run background health monitoring (daemon mode)"
+    )
     
     args = parser.parse_args()
     
@@ -376,6 +442,36 @@ def main():
         run_folder_comparison()
     elif args.report:
         generate_folder_report()
+    elif args.background_health:
+        # Run background health monitoring
+        cfg = config.load_config(Path(__file__).parent / "config.ini")
+        
+        # Setup logging
+        logger = logging.getLogger()
+        logger.setLevel(logging.INFO)
+        formatter = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
+        file_handler = logging.FileHandler(str(cfg.log_file), mode="a", encoding="utf-8")
+        file_handler.setLevel(logging.INFO)
+        file_handler.setFormatter(formatter)
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(logging.INFO)
+        console_handler.setFormatter(formatter)
+        if logger.hasHandlers():
+            logger.handlers.clear()
+        logger.addHandler(file_handler)
+        logger.addHandler(console_handler)
+        
+        logging.info("Starting background health monitoring...")
+        
+        # Load cache and start background monitoring
+        cache = SQLiteCache(cfg.sqlite_cache_file)
+        health_monitor = StreamHealthMonitor(cfg, cache)
+        
+        # Run the periodic health check
+        try:
+            asyncio.run(periodic_health_check(cfg, cache))
+        except KeyboardInterrupt:
+            logging.info("Background health monitoring stopped by user")
     else:
         # Default: run the normal M3U processing pipeline
         run_pipeline()
