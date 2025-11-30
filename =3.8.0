@@ -1,0 +1,29 @@
+Collecting aiohttp
+  Downloading aiohttp-3.13.2-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (8.1 kB)
+Collecting aiohappyeyeballs>=2.5.0 (from aiohttp)
+  Downloading aiohappyeyeballs-2.6.1-py3-none-any.whl.metadata (5.9 kB)
+Collecting aiosignal>=1.4.0 (from aiohttp)
+  Downloading aiosignal-1.4.0-py3-none-any.whl.metadata (3.7 kB)
+Collecting attrs>=17.3.0 (from aiohttp)
+  Downloading attrs-25.4.0-py3-none-any.whl.metadata (10 kB)
+Collecting frozenlist>=1.1.1 (from aiohttp)
+  Downloading frozenlist-1.8.0-cp314-cp314-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl.metadata (20 kB)
+Collecting multidict<7.0,>=4.5 (from aiohttp)
+  Downloading multidict-6.7.0-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (5.3 kB)
+Collecting propcache>=0.2.0 (from aiohttp)
+  Downloading propcache-0.4.1-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (13 kB)
+Collecting yarl<2.0,>=1.17.0 (from aiohttp)
+  Downloading yarl-1.22.0-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (75 kB)
+Requirement already satisfied: idna>=2.0 in ./.venv/lib64/python3.14/site-packages (from yarl<2.0,>=1.17.0->aiohttp) (3.11)
+Downloading aiohttp-3.13.2-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (1.7 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.7/1.7 MB 11.8 MB/s  0:00:00
+Downloading multidict-6.7.0-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (248 kB)
+Downloading yarl-1.22.0-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (372 kB)
+Downloading aiohappyeyeballs-2.6.1-py3-none-any.whl (15 kB)
+Downloading aiosignal-1.4.0-py3-none-any.whl (7.5 kB)
+Downloading attrs-25.4.0-py3-none-any.whl (67 kB)
+Downloading frozenlist-1.8.0-cp314-cp314-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl (231 kB)
+Downloading propcache-0.4.1-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (201 kB)
+Installing collected packages: propcache, multidict, frozenlist, attrs, aiohappyeyeballs, yarl, aiosignal, aiohttp
+
+Successfully installed aiohappyeyeballs-2.6.1 aiohttp-3.13.2 aiosignal-1.4.0 attrs-25.4.0 frozenlist-1.8.0 multidict-6.7.0 propcache-0.4.1 yarl-1.22.0

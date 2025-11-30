@@ -22,7 +22,6 @@ from core import (
 from m3u_utils import (
     parse_m3u,
     split_by_market_filter,
-    split_by_market_filter_enhanced,
     Category,
     VODEntry,
 )
@@ -125,9 +124,6 @@ def run_pipeline():
         existing.update(build_existing_media_cache(Path(d)))
     cache.replace_existing_media(existing)
     
-    # Clean up expired TMDb cache entries and optimize
-    cache.cleanup_expired_tmdb_cache()
-    
     # Log cache statistics for monitoring
     if getattr(cfg, 'enable_analytics', False):
         cache_stats = cache.get_cache_stats()
@@ -198,38 +194,12 @@ def run_pipeline():
         else:
             logging.debug("CACHE MISS: raw_title=%r key=%s cached_entry=%s", e.raw_title, key, strm_cache.get(key))
             to_check.append(e)
-    # Use enhanced filtering if batch processing is enabled
-    if getattr(cfg, 'enable_batch_processing', True):
-        logging.info("Using enhanced filtering with rate limiting and batch processing")
-        allowed, excluded = split_by_market_filter_enhanced(
-            to_check,
-            allowed_movie_countries=cfg.allowed_movie_countries,
-            allowed_tv_countries=cfg.allowed_tv_countries,
-            api_key=cfg.tmdb_api,
-            ignore_keywords=cfg.ignore_keywords,
-            max_workers=cfg.max_workers,
-            max_retries=getattr(cfg, 'api_max_retries', 5),
-            cache=cache,
-            cache_ttl_days=cfg.tmdb_cache_ttl_days,
-            api_delay=getattr(cfg, 'api_delay', 0.25),
-            api_backoff_factor=getattr(cfg, 'api_backoff_factor', 2.0),
-            enable_batch_processing=getattr(cfg, 'enable_batch_processing', True),
-            title_similarity_threshold=getattr(cfg, 'title_similarity_threshold', 0.85),
-            config=cfg,  # Pass the config object for pre-filtering
-        )
-    else:
-        logging.info("Using standard filtering")
-        allowed, excluded = split_by_market_filter(
-            to_check,
-            allowed_movie_countries=cfg.allowed_movie_countries,
-            allowed_tv_countries=cfg.allowed_tv_countries,
-            api_key=cfg.tmdb_api,
-            ignore_keywords=cfg.ignore_keywords,
-            max_workers=cfg.max_workers,
-            cache=cache,
-            cache_ttl_days=cfg.tmdb_cache_ttl_days,
-            config=cfg,  # Pass the config object for pre-filtering
-        )
+    # Use simplified keyword-based filtering
+    logging.info("Using simplified keyword-based filtering")
+    allowed, excluded = split_by_market_filter(
+        to_check,
+        ignore_keywords=cfg.ignore_keywords,
+    )
     allowed.extend(reused_allowed)
     excluded.extend(reused_excluded)
     write_excluded_report(output_dir / "excluded_entries.txt", excluded, len(allowed), write_non_us_report)

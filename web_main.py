@@ -270,10 +270,6 @@ class JobManager:
         await broadcast_message(f"Filtering {len(to_check)} entries by country...")
         allowed, excluded = split_by_market_filter(
             to_check,
-            allowed_movie_countries=cfg.allowed_movie_countries,
-            allowed_tv_countries=cfg.allowed_tv_countries,
-            api_key=cfg.tmdb_api,
-            max_workers=cfg.max_workers,
             ignore_keywords=cfg.ignore_keywords,
         )
         

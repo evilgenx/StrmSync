@@ -26,10 +26,6 @@ compare_movies_dir = /path/to/compare/movies/
 compare_tv_dir = /path/to/compare/tv/shows/
 
 [api]
-# TMDB API key (REQUIRED for movie/TV show filtering)
-# Get your free API key from: https://www.themoviedb.org/settings/api
-tmdb_api = YOUR_TMDB_API_KEY_HERE
-
 # Emby API settings (optional)
 # Uncomment and configure if you want to use Emby API integration
 #emby_api_url = https://your-emby-server.com
@@ -53,13 +49,6 @@ max_workers = 8
 # Write excluded entries report (true/false)
 # Creates a report of content that was excluded (non-US, duplicates, etc.)
 write_non_us_report = true
-
-# Pre-filter settings
-# Enable pre-filtering to skip obvious non-US content before TMDb API calls
-enable_pre_filter = true
-# Minimum confidence threshold to bypass TMDb (0.0 to 1.0)
-# Higher values are more conservative (only skip with high confidence)
-pre_filter_confidence_threshold = 0.70
 
 [library_management]
 # Enable advanced library management features
@@ -112,17 +101,6 @@ channel_groups = sports,news,entertainment,movies,kids,music,documentaries
 
 # Enable channel editor in web interface (true/false)
 enable_channel_editor = true
-
-[countries]
-# Allowed movie countries (comma-separated ISO 3166-1 codes)
-# A movie is kept if it has a release date in ANY of these countries
-# Common codes: US, GB, CA, AU, NZ
-allowed_movie_countries = US,GB,CA
-
-# Allowed TV show countries (comma-separated ISO 3166-1 codes)
-# A TV show is kept if any of its networks have origin_country in this list
-# Common codes: US, GB, CA, AU, NZ
-allowed_tv_countries = US,GB,CA
 
 [keywords]
 # TV show group keywords (comma-separated)

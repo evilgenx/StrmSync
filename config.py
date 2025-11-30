@@ -13,11 +13,8 @@ class Config:
     log_file: Path
     output_dir: Path
     existing_media_dirs: List[Path]
-    tmdb_api: str
     dry_run: bool = False
     max_workers: Optional[int] = None
-    allowed_movie_countries: List[str] = None
-    allowed_tv_countries: List[str] = None
     write_non_us_report: bool = True
     tv_group_keywords: List[str] = None
     doc_group_keywords: List[str] = None
@@ -49,9 +46,6 @@ class Config:
     health_check_mode: str = "random"  # "all", "random", "percentage"
     health_check_sample_size: int = 50  # Number of random files to test
     health_check_sample_percentage: float = 0.0  # Percentage of total library to test (0.0 to 1.0)
-    
-    # TMDb cache settings
-    tmdb_cache_ttl_days: int = 7  # How long to cache TMDb API responses (in days)
     # Live TV settings
     enable_live_tv: bool = False
     live_tv_output_dir: Optional[Path] = None
@@ -59,17 +53,6 @@ class Config:
     channel_groups: List[str] = None
     channel_logos_url: Optional[str] = None
     enable_channel_editor: bool = True
-    # API Rate Limiting settings
-    api_delay: float = 0.25  # Time to wait between API calls (seconds)
-    api_max_retries: int = 5  # Maximum retries for API calls
-    api_backoff_factor: float = 2.0  # Exponential backoff multiplier for retries
-    # Batch processing settings
-    enable_batch_processing: bool = True  # Enable smarter deduplication
-    title_similarity_threshold: float = 0.85  # Group similar titles together (0-1)
-    
-    # Pre-filter settings
-    enable_pre_filter: bool = True  # Enable pre-filtering to skip obvious non-US content
-    pre_filter_confidence_threshold: float = 0.70  # Minimum confidence to bypass TMDb
 
 
 class ConfigValidator:
@@ -87,10 +70,6 @@ class ConfigValidator:
             List of error messages (empty if valid)
         """
         errors = []
-        
-        # Check required fields
-        if not config.tmdb_api or config.tmdb_api.strip() == "":
-            errors.append("TMDb API key is required and cannot be empty")
         
         if not config.existing_media_dirs:
             errors.append("At least one existing_media_dir is required")
@@ -251,11 +230,8 @@ def load_config(path: Path) -> Config:
         log_file=Path(config.get("paths", "log_file")),
         output_dir=Path(config.get("paths", "output_dir")),
         existing_media_dirs=existing_dirs,
-        tmdb_api=config.get("api", "tmdb_api"),
         dry_run=_coerce_bool(config.get("settings", "dry_run", fallback="false")),
         max_workers=mw,
-        allowed_movie_countries=_parse_list(config.get("countries", "allowed_movie_countries", fallback="US")),
-        allowed_tv_countries=_parse_list(config.get("countries", "allowed_tv_countries", fallback="US")),
         write_non_us_report=_coerce_bool(config.get("settings", "write_non_us_report", fallback="true")),
         tv_group_keywords=_parse_list(config.get("keywords", "tv_group_keywords", fallback="")),
         doc_group_keywords=_parse_list(config.get("keywords", "doc_group_keywords", fallback="")),
@@ -275,11 +251,4 @@ def load_config(path: Path) -> Config:
         channel_groups=_parse_list(config.get("live_tv", "channel_groups", fallback="")),
         channel_logos_url=config.get("live_tv", "channel_logos_url", fallback=None),
         enable_channel_editor=_coerce_bool(config.get("live_tv", "enable_channel_editor", fallback="true")),
-        # API Rate Limiting settings
-        api_delay=float(config.get("settings", "api_delay", fallback="0.25")),
-        api_max_retries=int(config.get("settings", "api_max_retries", fallback="5")),
-        api_backoff_factor=float(config.get("settings", "api_backoff_factor", fallback="2.0")),
-        # Batch processing settings
-        enable_batch_processing=_coerce_bool(config.get("settings", "enable_batch_processing", fallback="true")),
-        title_similarity_threshold=float(config.get("settings", "title_similarity_threshold", fallback="0.85")),
     )

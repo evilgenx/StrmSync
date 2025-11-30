@@ -6,15 +6,15 @@ This document explains the aggressive caching system implemented to dramatically
 
 ## Problem Solved
 
-Your program was making **144,000+ TMDb API calls** for 48,131 VOD entries (3 calls per entry on average), causing processing times of **40-54 hours** or more due to TMDb rate limiting.
+Your program was making **144,000+ API calls** for 48,131 VOD entries (3 calls per entry on average), causing processing times of **40-54 hours** or more due to rate limiting.
 
 ## Solution: Aggressive Caching
 
 ### 1. Enhanced SQLite Cache Schema
 
 **New Database Tables:**
-- `tmdb_search_cache` - Caches search/movie and search/tv results
-- `tmdb_details_cache` - Caches movie/{id}/release_dates and tv/{id} responses
+- `search_cache` - Caches search results
+- `details_cache` - Caches detailed responses
 
 **Cache Key Generation:**
 - Uses MD5 hash of media_type + title + year for precise lookups
@@ -24,7 +24,7 @@ Your program was making **144,000+ TMDb API calls** for 48,131 VOD entries (3 ca
 
 **Config Setting:**
 ```ini
-tmdb_cache_ttl_days = 7
+cache_ttl_days = 7
 ```
 
 **Purpose:**
@@ -54,7 +54,7 @@ tmdb_cache_ttl_days = 7
 ### 5. Implementation Details
 
 **Files Modified:**
-- `core.py` - Added SQLiteCache methods for TMDb caching
+- `core.py` - Added SQLiteCache methods for caching
 - `m3u_utils.py` - Integrated cache lookups into filtering functions
 - `config.py` - Added cache TTL configuration
 - `config.ini` - Added cache TTL setting
@@ -63,15 +63,15 @@ tmdb_cache_ttl_days = 7
 **Cache Methods:**
 ```python
 # Search cache
-cache.get_tmdb_search_cache(media_type, title, year, ttl_days)
-cache.set_tmdb_search_cache(media_type, title, year, response_data, ttl_days)
+cache.get_search_cache(media_type, title, year, ttl_days)
+cache.set_search_cache(media_type, title, year, response_data, ttl_days)
 
 # Details cache
-cache.get_tmdb_details_cache(media_type, media_id, ttl_days)
-cache.set_tmdb_details_cache(media_type, media_id, response_data, ttl_days)
+cache.get_details_cache(media_type, media_id, ttl_days)
+cache.set_details_cache(media_type, media_id, response_data, ttl_days)
 
 # Cleanup
-cache.cleanup_expired_tmdb_cache()
+cache.cleanup_expired_cache()
 ```
 
 ### 6. Cache Invalidation
@@ -96,7 +96,7 @@ cache.cleanup_expired_tmdb_cache()
 ### 8. Monitoring and Debugging
 
 **Logging:**
-- Cache hits logged as: `"TMDb cache hit for movie search: 'The Matrix' (1999)"`
+- Cache hits logged as: `"Cache hit for movie search: 'The Matrix' (1999)"`
 - Cache misses logged as: `"CACHE MISS: raw_title='The Matrix' key=abc123"`
 - Performance metrics in filter statistics
 
@@ -110,13 +110,13 @@ cache.cleanup_expired_tmdb_cache()
 **Optional Configuration:**
 ```ini
 # In config.ini
-tmdb_cache_ttl_days = 7  # Adjust as needed (1-30 days typical)
+cache_ttl_days = 7  # Adjust as needed (1-30 days typical)
 ```
 
 ## Benefits
 
 1. **Massive Speed Improvement**: 70-80% reduction in processing time
-2. **Reduced API Load**: Fewer TMDb requests means less rate limiting
+2. **Reduced API Load**: Fewer requests means less rate limiting
 3. **Better Reliability**: Cached responses prevent failures during API issues
 4. **Cost Effective**: Less API usage if you have rate limits or costs
 5. **Scalable**: Performance improvement scales with library size
@@ -133,7 +133,7 @@ Potential improvements that could be added:
 
 To verify the caching is working:
 1. Run the pipeline with logging enabled
-2. Look for "TMDb cache hit" messages in logs
+2. Look for "Cache hit" messages in logs
 3. Compare processing time with previous runs
 4. Monitor API call frequency reduction
 

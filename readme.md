@@ -11,7 +11,7 @@ A sophisticated Python tool that converts IPTV VOD playlists into `.strm` files 
 
 ### Core Functionality
 - **M3U Playlist Processing**: Parse local files or remote URLs containing IPTV VOD content
-- **Smart Content Filtering**: Use TMDb API to filter content by country of origin
+- **Smart Content Filtering**: Use keyword-based filtering to categorize content
 - **Automatic .strm Generation**: Create properly formatted `.strm` files for media servers
 - **Library Integration**: Automatically refresh Emby and Jellyfin libraries after updates
 - **Multi-threaded Processing**: Parallel processing for faster performance
@@ -53,7 +53,6 @@ A sophisticated Python tool that converts IPTV VOD playlists into `.strm` files 
 ## 📋 Requirements
 
 - Python 3.8+
-- TMDb API key (free from [The Movie Database](https://www.themoviedb.org/settings/api))
 - Emby/Jellyfin API key (optional, for automatic library refresh)
 
 ## 🛠 Installation
@@ -98,9 +97,6 @@ sqlite_cache_file = "/path/to/cache.db"
 log_file = "/path/to/m3u2strm.log"
 
 [api]
-# TMDb API key (required)
-tmdb_api = "your_tmdb_api_key_here"
-
 # Emby API (optional)
 emby_api_url = "http://your-emby-server:8096"
 emby_api_key = "your_emby_api_key"
@@ -108,11 +104,6 @@ emby_api_key = "your_emby_api_key"
 # Jellyfin API (optional)
 jellyfin_api_url = "http://your-jellyfin-server:8096"
 jellyfin_api_key = "your_jellyfin_api_key"
-
-[countries]
-# Allowed countries for content filtering
-allowed_movie_countries = US,GB,CA
-allowed_tv_countries = US,GB,CA
 
 [keywords]
 # Content categorization keywords
@@ -143,13 +134,8 @@ write_non_us_report = true
 - `log_file`: Application log file location
 
 #### API Section
-- `tmdb_api`: Required for country filtering and metadata
 - `emby_api_url` & `emby_api_key`: Optional for automatic Emby library refresh
 - `jellyfin_api_url` & `jellyfin_api_key`: Optional for automatic Jellyfin library refresh
-
-#### Countries Section
-- `allowed_movie_countries`: Countries allowed for movies (comma-separated ISO codes)
-- `allowed_tv_countries`: Countries allowed for TV shows
 
 #### Keywords Section
 - Content categorization keywords help identify movie/TV/documentary content
@@ -348,7 +334,7 @@ StrmSync/
 ├── main.py              # Main orchestration script
 ├── config.py            # Configuration management
 ├── core.py              # Core logic: media scanning, caching, title normalization
-├── m3u_utils.py         # M3U parsing and TMDb filtering
+├── m3u_utils.py         # M3U parsing and filtering
 ├── strm_utils.py        # .strm file creation and cleanup
 ├── url_utils.py         # URL handling utilities
 ├── config.ini           # Configuration template
@@ -376,11 +362,6 @@ StrmSync/
 
 ## 🔧 Advanced Configuration
 
-### Country Filtering
-The tool uses TMDb API to determine the country of origin for each title. Only content from allowed countries is processed.
-
-Example countries: `US` (United States), `GB` (United Kingdom), `CA` (Canada), `AU` (Australia), `DE` (Germany)
-
 ### Keyword Groups
 - **TV Group**: Identifies TV shows (e.g., "series", "tv show", "season")
 - **Documentary Group**: Identifies documentaries (e.g., "documentary", "docu")
@@ -396,11 +377,6 @@ Prevent specific content from being processed:
 
 ### Common Issues
 
-**TMDb API Errors**
-- Verify your API key is correct and active
-- Check rate limits (free tier has daily limits)
-- Ensure your IP isn't blocked
-
 **Permission Errors**
 - Ensure write permissions to output directories
 - Check that existing media directories are accessible
@@ -411,20 +387,18 @@ Prevent specific content from being processed:
 
 **Missing Content**
 - Check `excluded_entries.txt` for filtered content
-- Verify country settings match your preferences
 - Review keyword categorization settings
 
 ### Log Files
 Check the log file specified in `log_file` for detailed processing information:
 - Processing progress and statistics
-- API call results and errors
 - File creation and cleanup operations
 
 ## 🔄 How It Works
 
 1. **Scan Local Media**: Build cache of existing movies and TV shows
 2. **Parse M3U Playlist**: Read and categorize VOD entries
-3. **Country Filtering**: Use TMDb API to filter by allowed countries
+3. **Keyword Filtering**: Use keyword-based filtering to categorize content
 4. **Deduplication**: Remove duplicate entries
 5. **Cache Check**: Compare against existing cache and local media
 6. **.strm Creation**: Generate .strm files for new/missing content
@@ -448,6 +422,5 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## 🙏 Acknowledgments
 
-- The Movie Database (TMDb) for content metadata
 - IPTV providers for VOD content
 - Emby and Jellyfin communities for .strm file format support
