@@ -297,6 +297,51 @@ class SQLiteCache:
         """, (current_time,))
         
         self.conn.commit()
+    
+    def get_cache_stats(self) -> Dict[str, int]:
+        """Get cache statistics for monitoring."""
+        stats = {}
+        
+        # Count entries in each table
+        stats['existing_media'] = self.conn.execute("SELECT COUNT(*) FROM existing_media").fetchone()[0]
+        stats['strm_cache'] = self.conn.execute("SELECT COUNT(*) FROM strm_cache").fetchone()[0]
+        stats['tmdb_search_cache'] = self.conn.execute("SELECT COUNT(*) FROM tmdb_search_cache").fetchone()[0]
+        stats['tmdb_details_cache'] = self.conn.execute("SELECT COUNT(*) FROM tmdb_details_cache").fetchone()[0]
+        
+        # Count expired entries
+        current_time = int(time.time())
+        stats['expired_tmdb_search'] = self.conn.execute(
+            "SELECT COUNT(*) FROM tmdb_search_cache WHERE expires_at < ?", (current_time,)
+        ).fetchone()[0]
+        stats['expired_tmdb_details'] = self.conn.execute(
+            "SELECT COUNT(*) FROM tmdb_details_cache WHERE expires_at < ?", (current_time,)
+        ).fetchone()[0]
+        
+        return stats
+    
+    def optimize_cache(self):
+        """Optimize cache performance by cleaning up and vacuuming."""
+        # Clean up expired entries
+        self.cleanup_expired_tmdb_cache()
+        
+        # Vacuum the database to reclaim space and optimize performance
+        self.conn.execute("VACUUM")
+        
+        # Update statistics
+        stats = self.get_cache_stats()
+        logging.info(f"Cache optimized: {stats}")
+    
+    def clear_tmdb_cache(self, media_type: Optional[str] = None):
+        """Clear TMDb cache entries, optionally filtered by media type."""
+        if media_type:
+            self.conn.execute("DELETE FROM tmdb_search_cache WHERE media_type = ?", (media_type,))
+            self.conn.execute("DELETE FROM tmdb_details_cache WHERE media_type = ?", (media_type,))
+        else:
+            self.conn.execute("DELETE FROM tmdb_search_cache")
+            self.conn.execute("DELETE FROM tmdb_details_cache")
+        
+        self.conn.commit()
+        logging.info(f"Cleared TMDb cache for media type: {media_type or 'all'}")
 
 
 def _extract_season_episode(name: str) -> Optional[Tuple[int, int]]:

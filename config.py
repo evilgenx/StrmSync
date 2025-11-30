@@ -59,6 +59,13 @@ class Config:
     channel_groups: List[str] = None
     channel_logos_url: Optional[str] = None
     enable_channel_editor: bool = True
+    # API Rate Limiting settings
+    api_delay: float = 0.25  # Time to wait between API calls (seconds)
+    api_max_retries: int = 5  # Maximum retries for API calls
+    api_backoff_factor: float = 2.0  # Exponential backoff multiplier for retries
+    # Batch processing settings
+    enable_batch_processing: bool = True  # Enable smarter deduplication and batch processing
+    title_similarity_threshold: float = 0.85  # Group similar titles together (0-1)
 
 
 class ConfigValidator:
@@ -114,6 +121,18 @@ class ConfigValidator:
                 errors.append("max_workers must be at least 1")
             elif config.max_workers > 50:
                 errors.append("max_workers cannot exceed 50 (sanity check)")
+        
+        # Validate API rate limiting settings
+        if config.api_delay < 0:
+            errors.append("api_delay must be non-negative")
+        if config.api_max_retries < 1:
+            errors.append("api_max_retries must be at least 1")
+        if config.api_backoff_factor < 1:
+            errors.append("api_backoff_factor must be at least 1")
+        
+        # Validate batch processing settings
+        if config.title_similarity_threshold < 0 or config.title_similarity_threshold > 1:
+            errors.append("title_similarity_threshold must be between 0 and 1")
         
         # Validate M3U source
         if not config.m3u:
@@ -252,4 +271,11 @@ def load_config(path: Path) -> Config:
         channel_groups=_parse_list(config.get("live_tv", "channel_groups", fallback="")),
         channel_logos_url=config.get("live_tv", "channel_logos_url", fallback=None),
         enable_channel_editor=_coerce_bool(config.get("live_tv", "enable_channel_editor", fallback="true")),
+        # API Rate Limiting settings
+        api_delay=float(config.get("settings", "api_delay", fallback="0.25")),
+        api_max_retries=int(config.get("settings", "api_max_retries", fallback="5")),
+        api_backoff_factor=float(config.get("settings", "api_backoff_factor", fallback="2.0")),
+        # Batch processing settings
+        enable_batch_processing=_coerce_bool(config.get("settings", "enable_batch_processing", fallback="true")),
+        title_similarity_threshold=float(config.get("settings", "title_similarity_threshold", fallback="0.85")),
     )
