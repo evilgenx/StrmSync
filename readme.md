@@ -20,7 +20,9 @@ A sophisticated Python tool that converts IPTV VOD playlists into `.strm` files 
 - **Movie Support**: Full movie library organization with year detection
 - **TV Show Support**: Automatic season/episode parsing and folder structure
 - **Documentary Support**: Separate categorization for documentary content
-- **Live TV Filtering**: Automatically exclude REPLAY/live TV channels
+- **Live TV Support**: NEW! Full live TV channel processing with EPG integration
+- **Channel Editor**: NEW! Web-based channel management and editing
+- **Live TV Filtering**: Automatically exclude REPLAY/live TV channels (VOD mode)
 - **Duplicate Detection**: Smart deduplication of identical entries
 
 ### Advanced Library Management 🆕
@@ -38,6 +40,15 @@ A sophisticated Python tool that converts IPTV VOD playlists into `.strm` files 
 - **Dry Run Mode**: Test configurations without making actual changes
 - **Comprehensive Logging**: Detailed logs for troubleshooting and monitoring
 - **Folder Comparison**: Recursively compare folders and delete duplicates from output
+
+### Live TV Features 🆕
+- **Live TV Processing**: Full support for live TV channels alongside VOD content
+- **EPG Integration**: Electronic Program Guide support for live channels
+- **Channel Groups**: Organize channels by category (Sports, News, Entertainment, etc.)
+- **Channel Editor**: Web-based interface for managing and editing channels
+- **Channel Metadata**: Support for channel logos, descriptions, and EPG IDs
+- **Live TV STRM Files**: Generate .strm files for live channels in organized folder structure
+- **Quality Monitoring**: Track live stream health and performance
 
 ## 📋 Requirements
 
@@ -251,6 +262,84 @@ python main.py --compare-folders
 - **Safe Deletion**: Only deletes from output directory, never from comparison directories
 - **Interactive Confirmation**: Requires user confirmation before deleting any folders
 - **Dry Run Mode**: Preview what would be deleted without making changes
+
+### Live TV Processing
+
+Enable live TV support in your configuration:
+
+```ini
+[live_tv]
+enable_live_tv = true
+live_tv_output_dir = /path/to/live/tv/
+epg_url = https://your-iptv-provider.com/epg.xml
+channel_groups = sports,news,entertainment,movies,kids,music,documentaries
+enable_channel_editor = true
+```
+
+#### Processing Live TV Channels
+```bash
+# Process both VOD and live TV content
+python main.py
+
+# Process only live TV channels via web API
+curl -X POST http://localhost:8000/api/v1/live-tv/process
+```
+
+#### Live TV Features:
+- **Channel Groups**: Automatically organize channels by category
+- **EPG Integration**: Load Electronic Program Guide data for live channels
+- **Channel Metadata**: Support for logos, descriptions, and EPG IDs
+- **STRM Generation**: Create .strm files for live channels in organized folders
+- **NFO Files**: Generate metadata files for better Jellyfin/Emby integration
+- **Quality Monitoring**: Track live stream health and performance
+
+#### Web Interface for Channel Management
+Access the web dashboard at `http://localhost:8000` to:
+- View and manage live TV channels
+- Edit channel information (name, logo, group)
+- Import/export channel lists
+- Monitor stream health
+- View EPG data
+
+#### Live TV Output Structure
+```
+/media/m3u2strm/Live TV/
+├── Sports/
+│   ├── ESPN.strm
+│   ├── ESPN.nfo
+│   ├── Fox Sports.strm
+│   └── Fox Sports.nfo
+├── News/
+│   ├── CNN.strm
+│   ├── CNN.nfo
+│   ├── BBC News.strm
+│   └── BBC News.nfo
+└── Entertainment/
+    ├── HBO.strm
+    ├── HBO.nfo
+    └── Netflix.strm
+```
+
+#### API Endpoints for Live TV
+```bash
+# Get live TV status
+curl http://localhost:8000/api/v1/live-tv/status
+
+# Get all channels
+curl http://localhost:8000/api/v1/live-tv/channels
+
+# Get channel groups
+curl http://localhost:8000/api/v1/live-tv/groups
+
+# Get EPG data
+curl http://localhost:8000/api/v1/live-tv/epg
+
+# Get live TV statistics
+curl http://localhost:8000/api/v1/live-tv/stats
+
+# Export channel list
+curl -X POST http://localhost:8000/api/v1/live-tv/export/m3u
+```
 
 ## 📁 File Structure
 

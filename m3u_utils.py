@@ -141,7 +141,7 @@ def parse_m3u(
     return entries
 
 
-def _tmdb_get(url: str, api_key: str) -> Optional[dict]:
+def _tmdb_get(url: str, api_key: str, cache: Optional['SQLiteCache'] = None, cache_ttl_days: int = 7) -> Optional[dict]:
     try:
         resp = requests.get(url, timeout=10)
         if resp.status_code == 429:
@@ -156,26 +156,39 @@ def _tmdb_get(url: str, api_key: str) -> Optional[dict]:
 
 
 def _movie_tmdb_lookup(
-    title: str, year: Optional[int], allowed_countries: List[str], api_key: str
+    title: str, year: Optional[int], allowed_countries: List[str], api_key: str, cache: Optional['SQLiteCache'] = None, cache_ttl_days: int = 7
 ) -> bool:
-    base_url = "https://api.themoviedb.org/3/search/movie"
-    params = {"api_key": api_key, "query": title.strip(), "language": "en-US"}
-    if year:
-        params["year"] = year
-    try:
-        resp = requests.get(base_url, params=params, timeout=10)
-        if resp.status_code == 429:
-            raise TMDbRateLimitError("TMDb rate limit hit (429 Too Many Requests)")
-        resp.raise_for_status()
-        data = resp.json()
-    except TMDbRateLimitError:
-        raise
-    except Exception as e:
-        logging.error(f"TMDb request failed for {title} ({year}): {e}")
-        return False
-    if not data.get("results") and year:
-        logging.debug(f"TMDb: No match for '{title}' ({year}), retrying without year")
-        params.pop("year", None)
+    # Check cache first for search results
+    if cache:
+        cached_search = cache.get_tmdb_search_cache("movie", title, year, cache_ttl_days)
+        if cached_search:
+            logging.debug(f"TMDb cache hit for movie search: '{title}' ({year})")
+            data = cached_search
+        else:
+            # Make API call and cache the result
+            base_url = "https://api.themoviedb.org/3/search/movie"
+            params = {"api_key": api_key, "query": title.strip(), "language": "en-US"}
+            if year:
+                params["year"] = year
+            try:
+                resp = requests.get(base_url, params=params, timeout=10)
+                if resp.status_code == 429:
+                    raise TMDbRateLimitError("TMDb rate limit hit (429 Too Many Requests)")
+                resp.raise_for_status()
+                data = resp.json()
+                # Cache the search result
+                cache.set_tmdb_search_cache("movie", title, year, data, cache_ttl_days)
+            except TMDbRateLimitError:
+                raise
+            except Exception as e:
+                logging.error(f"TMDb request failed for {title} ({year}): {e}")
+                return False
+    else:
+        # Original logic without cache
+        base_url = "https://api.themoviedb.org/3/search/movie"
+        params = {"api_key": api_key, "query": title.strip(), "language": "en-US"}
+        if year:
+            params["year"] = year
         try:
             resp = requests.get(base_url, params=params, timeout=10)
             if resp.status_code == 429:
@@ -185,16 +198,61 @@ def _movie_tmdb_lookup(
         except TMDbRateLimitError:
             raise
         except Exception as e:
+            logging.error(f"TMDb request failed for {title} ({year}): {e}")
+            return False
+    
+    if not data.get("results") and year:
+        logging.debug(f"TMDb: No match for '{title}' ({year}), retrying without year")
+        params = {"api_key": api_key, "query": title.strip(), "language": "en-US"}
+        try:
+            resp = requests.get(base_url, params=params, timeout=10)
+            if resp.status_code == 429:
+                raise TMDbRateLimitError("TMDb rate limit hit (429 Too Many Requests)")
+            resp.raise_for_status()
+            data = resp.json()
+            # Cache the search result without year
+            if cache:
+                cache.set_tmdb_search_cache("movie", title, None, data, cache_ttl_days)
+        except TMDbRateLimitError:
+            raise
+        except Exception as e:
             logging.error(f"TMDb retry (no year) failed for {title}: {e}")
             return False
+    
     if not data.get("results"):
         logging.debug(f"TMDb: No movie match for '{title}' ({year})")
         return False
+    
     best = data["results"][0]
     movie_id = best.get("id")
     if not movie_id:
         logging.debug(f"TMDb: No ID for movie '{title}' ({year})")
         return False
+    
+    # Check cache for details
+    if cache:
+        cached_details = cache.get_tmdb_details_cache("movie", movie_id, cache_ttl_days)
+        if cached_details:
+            logging.debug(f"TMDb cache hit for movie details: '{title}' ({year})")
+            releases = cached_details
+        else:
+            # Make API call and cache the result
+            release_url = f"https://api.themoviedb.org/3/movie/{movie_id}/release_dates"
+            try:
+                releases = requests.get(release_url, params={"api_key": api_key}, timeout=10).json()
+                cache.set_tmdb_details_cache("movie", movie_id, releases, cache_ttl_days)
+            except Exception as e:
+                logging.error(f"TMDb release info failed for {title} ({year}): {e}")
+                return False
+    else:
+        # Original logic without cache
+        release_url = f"https://api.themoviedb.org/3/movie/{movie_id}/release_dates"
+        try:
+            releases = requests.get(release_url, params={"api_key": api_key}, timeout=10).json()
+        except Exception as e:
+            logging.error(f"TMDb release info failed for {title} ({year}): {e}")
+            return False
+    
     lang = best.get("original_language", "").lower()
     if lang == "ja":
         logging.debug(f"TMDb: Excluding '{title}' ({year}) - original language Japanese")
@@ -202,12 +260,7 @@ def _movie_tmdb_lookup(
     if lang == "en" and not allowed_countries:
         logging.debug(f"TMDb: Movie '{title}' allowed by English language (no country filter)")
         return True
-    release_url = f"https://api.themoviedb.org/3/movie/{movie_id}/release_dates"
-    try:
-        releases = requests.get(release_url, params={"api_key": api_key}, timeout=10).json()
-    except Exception as e:
-        logging.error(f"TMDb release info failed for {title} ({year}): {e}")
-        return False
+    
     results = releases.get("results", [])
     countries = {r.get("iso_3166_1") for r in results if isinstance(r, dict) and "iso_3166_1" in r}
     if any(c in allowed_countries for c in countries):
@@ -221,7 +274,7 @@ def _movie_tmdb_lookup(
 
 
 def _tv_has_allowed_network(
-    title: str, allowed_countries: List[str], api_key: str, year: Optional[int] = None
+    title: str, allowed_countries: List[str], api_key: str, year: Optional[int] = None, cache: Optional['SQLiteCache'] = None, cache_ttl_days: int = 7
 ) -> bool:
     query = re.sub(r"[Ss]\d{1,2}\s*[Ee]\d{1,2}.*", "", title)
     query = re.sub(r"\s*\(\d{4}\)\s*", "", query)
@@ -229,25 +282,66 @@ def _tv_has_allowed_network(
     query = re.sub(r"\((US|UK|CA|AU|NZ|FR|DE|IT)\)", "", query, flags=re.IGNORECASE)
     query = query.replace("&", "and")
     query = re.sub(r"\s+", " ", query).strip()
-    search_url = f"https://api.themoviedb.org/3/search/tv?api_key={api_key}&query={query}"
-    data = _tmdb_get(search_url, api_key)
+    
+    # Check cache first for search results
+    if cache:
+        cached_search = cache.get_tmdb_search_cache("tv", query, year, cache_ttl_days)
+        if cached_search:
+            logging.debug(f"TMDb cache hit for TV search: '{query}' ({year})")
+            data = cached_search
+        else:
+            # Make API call and cache the result
+            search_url = f"https://api.themoviedb.org/3/search/tv?api_key={api_key}&query={query}"
+            data = _tmdb_get(search_url, api_key, cache, cache_ttl_days)
+            if data:
+                cache.set_tmdb_search_cache("tv", query, year, data, cache_ttl_days)
+    else:
+        # Original logic without cache
+        search_url = f"https://api.themoviedb.org/3/search/tv?api_key={api_key}&query={query}"
+        data = _tmdb_get(search_url, api_key)
+    
     if not data or not data.get("results"):
         logging.debug(f"TMDb: No TV match for '{query}' - excluded by default")
         return False
+    
     results = data["results"]
     if year:
         filtered = [r for r in results if r.get("first_air_date", "").startswith(str(year))]
         if filtered:
             results = filtered
+    
     preferred = [r for r in results if any(c in allowed_countries for c in r.get("origin_country", []))]
     if preferred:
         best = max(preferred, key=lambda r: r.get("popularity", 0))
     else:
         best = max(results, key=lambda r: r.get("popularity", 0))
+    
     tid = best.get("id")
     if not tid:
         logging.debug(f"TMDb: No ID for TV show '{query}' - excluded by default")
         return False
+    
+    # Check cache for details
+    if cache:
+        cached_details = cache.get_tmdb_details_cache("tv", tid, cache_ttl_days)
+        if cached_details:
+            logging.debug(f"TMDb cache hit for TV details: '{query}' ({year})")
+            show = cached_details
+        else:
+            # Make API call and cache the result
+            show_url = f"https://api.themoviedb.org/3/tv/{tid}?api_key={api_key}"
+            show = _tmdb_get(show_url, api_key, cache, cache_ttl_days)
+            if show:
+                cache.set_tmdb_details_cache("tv", tid, show, cache_ttl_days)
+    else:
+        # Original logic without cache
+        show_url = f"https://api.themoviedb.org/3/tv/{tid}?api_key={api_key}"
+        show = _tmdb_get(show_url, api_key)
+    
+    if not show:
+        logging.debug(f"TMDb: No details for TV show '{query}' - allowing by default")
+        return True
+    
     lang = best.get("original_language", "").lower()
     if lang == "ja":
         logging.debug(f"TMDb: Excluding TV show '{query}' - original language Japanese")
@@ -255,26 +349,25 @@ def _tv_has_allowed_network(
     if lang == "en" and not allowed_countries:
         logging.debug(f"TMDb: TV show '{query}' allowed by English language (no country filter)")
         return True
-    show_url = f"https://api.themoviedb.org/3/tv/{tid}?api_key={api_key}"
-    show = _tmdb_get(show_url, api_key)
-    if not show:
-        logging.debug(f"TMDb: No details for TV show '{query}' - allowing by default")
-        return True
+    
     for network in show.get("networks", []):
         origin_countries = network.get("origin_country", [])
         if any(c in allowed_countries for c in origin_countries):
             logging.debug(f"TMDb: TV show '{query}' allowed by network country: {origin_countries}")
             return True
+    
     prod_country_codes = [
         c.get("iso_3166_1") for c in show.get("production_countries", []) if isinstance(c, dict)
     ]
     if any(c in allowed_countries for c in prod_country_codes):
         logging.debug(f"TMDb: TV show '{query}' allowed by production country")
         return True
+    
     origin_countries = show.get("origin_country", [])
     if any(c in allowed_countries for c in origin_countries):
         logging.debug(f"TMDb: TV show '{query}' allowed by origin country")
         return True
+    
     logging.debug(f"TMDb: Excluding TV show '{query}' - no match for allowed countries")
     return False
 
@@ -287,6 +380,8 @@ def split_by_market_filter(
     ignore_keywords: Dict[str, List[str]] = None,
     max_workers: int = None,
     max_retries: int = 5,
+    cache: Optional['SQLiteCache'] = None,
+    cache_ttl_days: int = 7,
 ) -> Tuple[List[VODEntry], List[VODEntry]]:
     if max_workers is None:
         max_workers = 10
@@ -328,21 +423,21 @@ def split_by_market_filter(
             title_clean = sanitize_title(e.raw_title)
             title_clean = re.sub(r"\s*\(\d{4}\)\s*", "", title_clean)
             title_clean = re.sub(r"\s*-\s*\d{4}$", "", title_clean).strip()
-            ok = with_retry(_movie_tmdb_lookup, title_clean, year, allowed_movie_countries, api_key)
+            ok = with_retry(_movie_tmdb_lookup, title_clean, year, allowed_movie_countries, api_key, cache, cache_ttl_days)
             return (e, ok, "movie")
         elif e.category == Category.TVSHOW:
             year = extract_year(e.raw_title)
             base_title = re.sub(r"[Ss]\d{1,2}[Ee]\d{1,2}.*", "", e.raw_title)
             base_title = re.sub(r"\s*\(\d{4}\)\s*", "", base_title)
             base_title = re.sub(r"\s*-\s*\d{4}$", "", base_title).strip()
-            ok = with_retry(_tv_has_allowed_network, base_title, allowed_tv_countries, api_key)
+            ok = with_retry(_tv_has_allowed_network, base_title, allowed_tv_countries, api_key, year, cache, cache_ttl_days)
             return (e, ok, "tv")
         elif e.category == Category.DOCUMENTARY:
             year = extract_year(e.raw_title)
             title_clean = sanitize_title(e.raw_title)
             title_clean = re.sub(r"\s*\(\d{4}\)\s*", "", title_clean)
             title_clean = re.sub(r"\s*-\s*\d{4}$", "", title_clean).strip()
-            ok = with_retry(_movie_tmdb_lookup, title_clean, year, allowed_movie_countries, api_key)
+            ok = with_retry(_movie_tmdb_lookup, title_clean, year, allowed_movie_countries, api_key, cache, cache_ttl_days)
             return (e, ok, "doc")
         else:
             return (e, False, "other")

@@ -85,6 +85,27 @@ health_check_sample_size = 50
 # Percentage of total library to test (0.0 to 1.0, used when mode=percentage)
 health_check_sample_percentage = 0.1  # 10% of library
 
+[live_tv]
+# Enable live TV processing (true/false)
+enable_live_tv = false
+
+# Output directory for live TV STRM files (optional, defaults to main output_dir)
+# live_tv_output_dir = /path/to/live/tv/
+
+# EPG (Electronic Program Guide) URL for live TV channels
+# Supports XMLTV format from IPTV providers
+# epg_url = https://your-iptv-provider.com/epg.xml
+
+# Channel groups to organize live TV channels
+# Common groups: sports, news, entertainment, movies, kids, music, documentaries
+channel_groups = sports,news,entertainment,movies,kids,music,documentaries
+
+# URL for channel logos (optional)
+# channel_logos_url = https://your-provider.com/logos/
+
+# Enable channel editor in web interface (true/false)
+enable_channel_editor = true
+
 [countries]
 # Allowed movie countries (comma-separated ISO 3166-1 codes)
 # A movie is kept if it has a release date in ANY of these countries

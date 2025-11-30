@@ -39,6 +39,7 @@ from library_management import (
     LibraryAnalytics,
     periodic_health_check
 )
+from live_tv_utils import LiveTVProcessor
 
 
 def refresh_media_server(api_url: str, api_key: str, server_type: str = "emby"):
@@ -122,6 +123,9 @@ def run_pipeline():
     for d in cfg.existing_media_dirs:
         existing.update(build_existing_media_cache(Path(d)))
     cache.replace_existing_media(existing)
+    
+    # Clean up expired TMDb cache entries
+    cache.cleanup_expired_tmdb_cache()
     existing_keys = set(existing.keys())
     entries = parse_m3u(
         m3u_path,
@@ -132,11 +136,34 @@ def run_pipeline():
         ignore_keywords=cfg.ignore_keywords,
     )
     
-    # Filter out live TV channels (REPLAY category) to keep only VOD content
-    original_count = len(entries)
-    entries = [entry for entry in entries if entry.category != Category.REPLAY]
-    replay_count = original_count - len(entries)
-    logging.info(f"Filtered out {replay_count} REPLAY (live TV) entries, keeping {len(entries)} VOD entries")
+    # Process live TV channels if enabled
+    if cfg.enable_live_tv:
+        logging.info("Processing live TV channels...")
+        live_tv_processor = LiveTVProcessor(cfg)
+        
+        # Parse M3U for live TV channels (separate from VOD processing)
+        live_channels = live_tv_processor.parse_m3u_for_live_tv(m3u_path)
+        live_tv_processor.group_channels()
+        
+        # Load EPG data if configured
+        if cfg.epg_url:
+            live_tv_processor.load_epg_data()
+        
+        # Generate STRM files for live TV
+        live_tv_written = live_tv_processor.generate_strm_files(cfg.dry_run)
+        logging.info(f"Generated {live_tv_written} live TV STRM files")
+        
+        # Filter out live TV channels from VOD processing
+        vod_entries = [entry for entry in entries if entry.category != Category.REPLAY]
+        replay_count = len(entries) - len(vod_entries)
+        logging.info(f"Filtered out {replay_count} REPLAY (live TV) entries, keeping {len(vod_entries)} VOD entries")
+        entries = vod_entries
+    else:
+        # Filter out live TV channels (REPLAY category) to keep only VOD content
+        original_count = len(entries)
+        entries = [entry for entry in entries if entry.category != Category.REPLAY]
+        replay_count = original_count - len(entries)
+        logging.info(f"Filtered out {replay_count} REPLAY (live TV) entries, keeping {len(entries)} VOD entries")
     unique_entries = {}
     for e in entries:
         key = KeyGenerator.generate_key(e)
@@ -172,6 +199,8 @@ def run_pipeline():
         api_key=cfg.tmdb_api,
         max_workers=cfg.max_workers,
         ignore_keywords=cfg.ignore_keywords,
+        cache=cache,
+        cache_ttl_days=cfg.tmdb_cache_ttl_days,
     )
     allowed.extend(reused_allowed)
     excluded.extend(reused_excluded)

@@ -37,6 +37,7 @@ from library_management import (
     HealthStatus,
     StreamHealth
 )
+from live_tv_utils import LiveTVProcessor, ChannelEditor, Channel, ChannelGroup
 
 
 # Pydantic models for API
@@ -644,6 +645,238 @@ async def get_all_streams():
             streams.append(stream_info)
     
     return streams
+
+
+# Live TV API Endpoints
+@app.get("/api/v1/live-tv/status")
+async def get_live_tv_status():
+    """Get live TV processing status"""
+    cfg = config.load_config(Path(__file__).parent / "config.ini")
+    
+    if not cfg.enable_live_tv:
+        return {"enabled": False, "message": "Live TV is disabled"}
+    
+    processor = LiveTVProcessor(cfg)
+    
+    # Parse M3U for live TV channels
+    m3u_path = get_m3u_path(cfg.m3u)
+    channels = processor.parse_m3u_for_live_tv(m3u_path)
+    groups = processor.group_channels()
+    
+    # Load EPG if configured
+    epg_data = {}
+    if cfg.epg_url:
+        epg_data = processor.load_epg_data()
+    
+    return {
+        "enabled": True,
+        "channels_found": len(channels),
+        "groups_found": len(groups),
+        "epg_channels": len(epg_data),
+        "groups": {name: len(group.channels) for name, group in groups.items()}
+    }
+
+
+@app.get("/api/v1/live-tv/channels")
+async def get_live_tv_channels():
+    """Get all live TV channels"""
+    cfg = config.load_config(Path(__file__).parent / "config.ini")
+    
+    if not cfg.enable_live_tv:
+        return {"error": "Live TV is disabled"}
+    
+    processor = LiveTVProcessor(cfg)
+    m3u_path = get_m3u_path(cfg.m3u)
+    channels = processor.parse_m3u_for_live_tv(m3u_path)
+    groups = processor.group_channels()
+    
+    # Convert to serializable format
+    result = []
+    for group_name, group in groups.items():
+        for channel in group.channels:
+            result.append({
+                'name': channel.name,
+                'safe_name': channel.safe_name,
+                'url': channel.url,
+                'group': channel.group,
+                'logo': channel.logo,
+                'epg_id': channel.epg_id,
+                'number': channel.number,
+                'resolution': channel.resolution,
+                'language': channel.language,
+                'country': channel.country,
+                'description': channel.description
+            })
+    
+    return result
+
+
+@app.get("/api/v1/live-tv/groups")
+async def get_live_tv_groups():
+    """Get all live TV channel groups"""
+    cfg = config.load_config(Path(__file__).parent / "config.ini")
+    
+    if not cfg.enable_live_tv:
+        return {"error": "Live TV is disabled"}
+    
+    processor = LiveTVProcessor(cfg)
+    m3u_path = get_m3u_path(cfg.m3u)
+    channels = processor.parse_m3u_for_live_tv(m3u_path)
+    groups = processor.group_channels()
+    
+    result = {}
+    for group_name, group in groups.items():
+        result[group_name] = {
+            'name': group.name,
+            'channel_count': len(group.channels),
+            'channels': [c.name for c in group.channels]
+        }
+    
+    return result
+
+
+@app.post("/api/v1/live-tv/process")
+async def process_live_tv(background_tasks: BackgroundTasks):
+    """Process live TV channels and generate STRM files"""
+    cfg = config.load_config(Path(__file__).parent / "config.ini")
+    
+    if not cfg.enable_live_tv:
+        return {"error": "Live TV is disabled"}
+    
+    # Create a job for live TV processing
+    global job_counter
+    job_id = f"live_tv_job_{job_counter}"
+    job_counter += 1
+    
+    job = JobStatus(
+        job_id=job_id,
+        status="queued",
+        start_time=time.time(),
+        current_step="Initializing Live TV processing"
+    )
+    
+    active_jobs[job_id] = job
+    
+    # Run live TV processing in background
+    background_tasks.add_task(process_live_tv_job, job_id)
+    
+    return {"job_id": job_id, "message": "Live TV processing started"}
+
+
+async def process_live_tv_job(job_id: str):
+    """Background job to process live TV channels"""
+    job = active_jobs[job_id]
+    
+    try:
+        cfg = config.load_config(Path(__file__).parent / "config.ini")
+        job.status = "running"
+        await broadcast_message("Starting Live TV processing...")
+        
+        # Initialize processor
+        processor = LiveTVProcessor(cfg)
+        m3u_path = get_m3u_path(cfg.m3u)
+        
+        # Parse channels
+        job.current_step = "Parsing M3U for live TV channels"
+        await broadcast_message("Parsing M3U for live TV channels...")
+        channels = processor.parse_m3u_for_live_tv(m3u_path)
+        
+        # Group channels
+        job.current_step = "Grouping channels"
+        await broadcast_message(f"Grouping {len(channels)} channels...")
+        groups = processor.group_channels()
+        
+        # Load EPG if configured
+        if cfg.epg_url:
+            job.current_step = "Loading EPG data"
+            await broadcast_message("Loading EPG data...")
+            processor.load_epg_data()
+        
+        # Generate STRM files
+        job.current_step = "Generating STRM files"
+        await broadcast_message("Generating STRM files...")
+        written_count = processor.generate_strm_files(cfg.dry_run)
+        
+        job.status = "completed"
+        job.end_time = time.time()
+        await broadcast_message(f"Live TV processing completed: {written_count} STRM files generated")
+        
+    except Exception as e:
+        job.status = "failed"
+        job.error = str(e)
+        job.end_time = time.time()
+        error_msg = f"Live TV processing failed: {str(e)}"
+        job.logs.append(error_msg)
+        await broadcast_message(error_msg, "error")
+        logging.error(f"Live TV job {job_id} failed: {e}", exc_info=True)
+
+
+@app.get("/api/v1/live-tv/epg")
+async def get_epg_data():
+    """Get EPG (Electronic Program Guide) data"""
+    cfg = config.load_config(Path(__file__).parent / "config.ini")
+    
+    if not cfg.enable_live_tv or not cfg.epg_url:
+        return {"error": "EPG is not configured"}
+    
+    processor = LiveTVProcessor(cfg)
+    epg_data = processor.load_epg_data()
+    
+    # Convert to serializable format
+    result = {}
+    for channel_id, programs in epg_data.items():
+        result[channel_id] = []
+        for program in programs:
+            result[channel_id].append({
+                'channel_id': program.channel_id,
+                'start': program.start,
+                'stop': program.stop,
+                'title': program.title,
+                'description': program.description,
+                'category': program.category,
+                'episode_num': program.episode_num,
+                'icon': program.icon
+            })
+    
+    return result
+
+
+@app.get("/api/v1/live-tv/stats")
+async def get_live_tv_stats():
+    """Get live TV statistics"""
+    cfg = config.load_config(Path(__file__).parent / "config.ini")
+    
+    if not cfg.enable_live_tv:
+        return {"error": "Live TV is disabled"}
+    
+    processor = LiveTVProcessor(cfg)
+    m3u_path = get_m3u_path(cfg.m3u)
+    channels = processor.parse_m3u_for_live_tv(m3u_path)
+    groups = processor.group_channels()
+    
+    stats = processor.get_channel_stats()
+    
+    return stats
+
+
+@app.post("/api/v1/live-tv/export/{format}")
+async def export_live_tv_data(format: str):
+    """Export live TV data in various formats"""
+    cfg = config.load_config(Path(__file__).parent / "config.ini")
+    
+    if not cfg.enable_live_tv:
+        return {"error": "Live TV is disabled"}
+    
+    processor = LiveTVProcessor(cfg)
+    m3u_path = get_m3u_path(cfg.m3u)
+    channels = processor.parse_m3u_for_live_tv(m3u_path)
+    groups = processor.group_channels()
+    
+    try:
+        data = processor.export_channel_list(format)
+        return {"format": format, "data": data}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Export failed: {str(e)}")
 
 
 def main():

@@ -49,6 +49,16 @@ class Config:
     health_check_mode: str = "random"  # "all", "random", "percentage"
     health_check_sample_size: int = 50  # Number of random files to test
     health_check_sample_percentage: float = 0.0  # Percentage of total library to test (0.0 to 1.0)
+    
+    # TMDb cache settings
+    tmdb_cache_ttl_days: int = 7  # How long to cache TMDb API responses (in days)
+    # Live TV settings
+    enable_live_tv: bool = False
+    live_tv_output_dir: Optional[Path] = None
+    epg_url: Optional[str] = None
+    channel_groups: List[str] = None
+    channel_logos_url: Optional[str] = None
+    enable_channel_editor: bool = True
 
 
 class ConfigValidator:
@@ -235,4 +245,11 @@ def load_config(path: Path) -> Config:
         jellyfin_api_key=config.get("api", "jellyfin_api_key", fallback=None),
         compare_movies_dir=compare_movies_dir,
         compare_tv_dir=compare_tv_dir,
+        # Live TV settings
+        enable_live_tv=_coerce_bool(config.get("live_tv", "enable_live_tv", fallback="false")),
+        live_tv_output_dir=Path(config.get("live_tv", "live_tv_output_dir", fallback="")) if config.get("live_tv", "live_tv_output_dir", fallback="") else None,
+        epg_url=config.get("live_tv", "epg_url", fallback=None),
+        channel_groups=_parse_list(config.get("live_tv", "channel_groups", fallback="")),
+        channel_logos_url=config.get("live_tv", "channel_logos_url", fallback=None),
+        enable_channel_editor=_coerce_bool(config.get("live_tv", "enable_channel_editor", fallback="true")),
     )
